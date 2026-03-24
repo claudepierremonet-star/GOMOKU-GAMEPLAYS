@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - elo: int (required) - Current ELO rating
+    //   - rank: string (required) - Current rank tier
+    //   - displayName: string (optional) - User's display name
+    //   - avatarUrl: string (optional) - User's profile picture URL
+    //   - bio: string (optional) - User's biography
+    //   - customCharacters: list (optional) - User's custom created characters
+    //   - customSkins: list (optional) - User's custom created skins
+    //   - lastPlayed: timestamp (optional) - Last match time
+    //   - settings: map (optional) - User's preferred game settings
+    //
+    // Collection: /matches/{matchId}
+    // Document ID: matchId (Random string)
+    // Fields:
+    //   - id: string (required) - Unique match ID
+    //   - date: timestamp (required) - Match date
+    //   - player1Uid: string (required) - UID of player 1
+    //   - player2Uid: string (required) - UID of player 2 (or 'AI')
+    //   - winnerUid: string (optional) - UID of winner, or 'draw'
+    //   - gameMode: string (required) - online, pve, or local
+    //   - moves: list (required) - List of moves
+    //   - boardSize: int (required) - Board size
+    //   - player1EloBefore: int (required)
+    //   - player1EloAfter: int (required)
+    //   - player2EloBefore: int (required)
+    //   - player2EloAfter: int (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "claudepierremonet@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 && data.uid.size() < 128 &&
+             data.elo is int && data.elo >= 0 && data.elo < 5000 &&
+             data.rank is string && data.rank.size() > 0 && data.rank.size() < 32 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() < 512)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 500)) &&
+             (!('customCharacters' in data) || data.customCharacters is list) &&
+             (!('customSkins' in data) || data.customSkins is list) &&
+             (!('lastPlayed' in data) || data.lastPlayed is timestamp) &&
+             (!('settings' in data) || (data.settings is map && 
+               (!('boardSize' in data.settings) || data.settings.boardSize in [15, 19]) &&
+               (!('ruleSet' in data.settings) || data.settings.ruleSet in ['casual', 'renju']) &&
+               (!('startingPlayer' in data.settings) || data.settings.startingPlayer in ['human', 'ai']) &&
+               (!('aiDifficulty' in data.settings) || data.settings.aiDifficulty is string) &&
+               (!('soundEnabled' in data.settings) || data.settings.soundEnabled is bool) &&
+               (!('selectedSkin' in data.settings) || data.settings.selectedSkin is string) &&
+               (!('selectedCharacter' in data.settings) || data.settings.selectedCharacter is string)));
+    }
+
+    function isValidMatch(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() < 64 &&
+             data.date is timestamp &&
+             data.player1Uid is string && data.player1Uid.size() > 0 &&
+             data.player2Uid is string && data.player2Uid.size() > 0 &&
+             (!('winnerUid' in data) || (data.winnerUid is string && data.winnerUid.size() < 128)) &&
+             data.gameMode in ['online', 'pve', 'local'] &&
+             data.moves is list && data.moves.size() < 500 &&
+             data.boardSize is int && data.boardSize >= 10 && data.boardSize <= 25 &&
+             data.player1EloBefore is int && data.player1EloAfter is int &&
+             data.player2EloBefore is int && data.player2EloAfter is int &&
+             (!('selectedSkin' in data) || data.selectedSkin is string) &&
+             (!('selectedCharacter' in data) || data.selectedCharacter is string);
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.elo == 1200 && // Initial ELO
+                      request.resource.data.rank == 'Beginner';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.uid == resource.data.uid) || isAdmin();
+    }
+
+    match /matches/{matchId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.player1Uid || request.auth.uid == resource.data.player2Uid || isAdmin());
+      allow create: if isAuthenticated() && isValidMatch(request.resource.data) && 
+                      (request.auth.uid == request.resource.data.player1Uid || request.auth.uid == request.resource.data.player2Uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

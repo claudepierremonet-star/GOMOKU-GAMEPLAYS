@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user competitive information and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "elo": { "type": "integer", "description": "Current ELO rating" },
+        "rank": { "type": "string", "description": "Current rank tier" },
+        "displayName": { "type": "string", "description": "User's display name" },
+        "avatarUrl": { "type": "string", "description": "User's profile picture URL" },
+        "bio": { "type": "string", "description": "User's biography" },
+        "customCharacters": {
+          "type": "array",
+          "description": "User's custom created characters",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "avatar": { "type": "string" },
+              "bio": { "type": "string" },
+              "isCustom": { "type": "boolean" }
+            }
+          }
+        },
+        "customSkins": {
+          "type": "array",
+          "description": "User's custom created skins",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "boardColor": { "type": "string" },
+              "lineColor": { "type": "string" },
+              "blackStone": { "type": "string" },
+              "whiteStone": { "type": "string" },
+              "isCustom": { "type": "boolean" }
+            }
+          }
+        },
+        "lastPlayed": { "type": "string", "format": "date-time", "description": "Last time the user played a match" },
+        "settings": {
+          "type": "object",
+          "description": "User's preferred game settings",
+          "properties": {
+            "boardSize": { "type": "integer", "description": "Preferred board size (15 or 19)" },
+            "ruleSet": { "type": "string", "description": "Preferred rule set (casual or renju)" },
+            "startingPlayer": { "type": "string", "description": "Preferred starting player (human or ai)" },
+            "aiDifficulty": { "type": "string", "description": "Preferred AI difficulty" },
+            "soundEnabled": { "type": "boolean", "description": "Whether sound effects are enabled" },
+            "selectedSkin": { "type": "string", "description": "ID of the selected stone/board skin" },
+            "selectedCharacter": { "type": "string", "description": "ID of the selected character profile" }
+          }
+        }
+      },
+      "required": ["uid", "elo", "rank"]
+    },
+    "Match": {
+      "title": "Match Record",
+      "description": "Stores the history of a completed match",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique match ID" },
+        "date": { "type": "string", "format": "date-time", "description": "When the match occurred" },
+        "player1Uid": { "type": "string", "description": "UID of player 1" },
+        "player2Uid": { "type": "string", "description": "UID of player 2 (or 'AI')" },
+        "winnerUid": { "type": "string", "description": "UID of the winner, or 'draw'" },
+        "gameMode": { "type": "string", "description": "online, pve, or local" },
+        "moves": { "type": "array", "description": "List of moves made during the match" },
+        "boardSize": { "type": "integer", "description": "Size of the board (e.g., 15)" },
+        "player1EloBefore": { "type": "integer", "description": "ELO of player 1 before the match" },
+        "player1EloAfter": { "type": "integer", "description": "ELO of player 1 after the match" },
+        "player2EloBefore": { "type": "integer", "description": "ELO of player 2 before the match" },
+        "player2EloAfter": { "type": "integer", "description": "ELO of player 2 after the match" },
+        "selectedSkin": { "type": "string", "description": "ID of the skin used by player 1" },
+        "selectedCharacter": { "type": "string", "description": "ID of the character used by player 1" }
+      },
+      "required": ["id", "date", "player1Uid", "player2Uid", "gameMode", "moves", "boardSize"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Global match history"
+    }
+  }
+}

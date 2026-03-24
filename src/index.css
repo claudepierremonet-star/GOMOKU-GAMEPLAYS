@@ -1,0 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Space+Grotesk:wght@400;500;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --animate-spin-slow: spin 8s linear infinite;
+}
+
+@keyframes pan-grid {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-40px, -40px); }
+}
+
+.mask-radial {
+  mask-image: radial-gradient(circle at center, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle at center, black 20%, transparent 70%);
+}
+
+@utility custom-scrollbar {
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #e4e4e7;
+    border-radius: 10px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #d4d4d8;
+  }
+}
