@@ -4,7 +4,13 @@
  */
 
 import { AppScreens } from './components/Screens';
+import { Toaster } from 'sonner';
 
 export default function App() {
-  return <AppScreens />;
+  return (
+    <>
+      <AppScreens />
+      <Toaster position="top-center" richColors />
+    </>
+  );
 }

@@ -41,6 +41,19 @@
             }
           }
         },
+        "stats": {
+          "type": "object",
+          "description": "User's detailed statistics",
+          "properties": {
+            "wins": { "type": "integer" },
+            "losses": { "type": "integer" },
+            "draws": { "type": "integer" },
+            "currentWinStreak": { "type": "integer" },
+            "maxWinStreak": { "type": "integer" },
+            "totalMoves": { "type": "integer" },
+            "totalGames": { "type": "integer" }
+          }
+        },
         "lastPlayed": { "type": "string", "format": "date-time", "description": "Last time the user played a match" },
         "settings": {
           "type": "object",

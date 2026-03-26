@@ -7,8 +7,7 @@ import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull } from '../
 import { getBestMove, getCoachAdvice, Difficulty } from '../game/ai';
 import { connectSocket, disconnectSocket, getSocket } from '../game/socket';
 import { MatchRecord, getRankTier, getNextRank, RANK_TIERS, SKINS, CHARACTERS, SkinId, UserProfile, Character, Skin } from '../types';
-import { auth, db, loginWithGoogle, logout, onAuthStateChanged, User as FirebaseUser, OperationType, handleFirestoreError } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { auth, db, loginWithGoogle, logout, onAuthStateChanged, User as FirebaseUser, OperationType, handleFirestoreError, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, addDoc, collection, query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp } from '../firebase';
 
 import { MusicPlayer } from './MusicPlayer';
 import { TutorialScreen } from './TutorialScreen';
@@ -16,6 +15,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
+
+import { toast } from 'sonner';
 
 const AMBIENT_COLORS = [
   { name: 'Aucun', value: 'transparent' },
@@ -779,7 +780,14 @@ export function AppScreens() {
         return newBoard;
       });
       playSound('move');
-      setMoveHistory(prev => [...prev, { row: data.row, col: data.col, player: data.player }]);
+      
+      let updatedHistory: { row: number, col: number, player: Player }[] = [];
+      setMoveHistory(prev => {
+        updatedHistory = [...prev, { row: data.row, col: data.col, player: data.player }];
+        moveHistoryRef.current = updatedHistory; // Manually update ref to avoid stale data
+        return updatedHistory;
+      });
+      
       setLastMove({ row: data.row, col: data.col });
       setCurrentPlayer(data.nextPlayer);
       if (data.winner) {
@@ -809,7 +817,7 @@ export function AppScreens() {
               playerEloBefore: prev,
               playerEloAfter: newPlayerElo,
               result: data.winner === 'draw' ? 'draw' : (data.winner === onlinePlayerColorRef.current ? 'win' : 'loss'),
-              moves: [...moveHistoryRef.current, { row: data.row, col: data.col, player: data.player }],
+              moves: updatedHistory,
               boardSize: boardSizeRef.current,
               gameMode: 'online',
               winner: data.winner,
@@ -877,7 +885,7 @@ export function AppScreens() {
     };
 
     const onError = (data: { message: string }) => {
-      alert(data.message);
+      toast.error(data.message);
       setIsSearchingMatch(false);
       setSearchStartTime(null);
     };
@@ -1132,6 +1140,34 @@ export function AppScreens() {
     setShowMusicModal(false);
   };
 
+  const deleteAccount = async () => {
+    if (!user) return;
+    
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et toutes vos données (ELO, historique, skins personnalisés) seront définitivement supprimées.")) {
+      return;
+    }
+
+    try {
+      // 1. Delete user document from Firestore
+      await deleteDoc(doc(db, 'users', user.uid));
+      
+      // 2. Delete match history (optional, but good for GDPR)
+      const matchesQuery = query(collection(db, 'matches'), where('player1Uid', '==', user.uid));
+      const matchesSnapshot = await getDocs(matchesQuery);
+      const deletePromises = matchesSnapshot.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(deletePromises);
+
+      // 3. Sign out
+      await logout();
+      
+      toast.success("Votre compte a été supprimé avec succès.");
+      setCurrentScreen('home');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'users');
+      toast.error("Une erreur est survenue lors de la suppression du compte.");
+    }
+  };
+
   const handleUndo = () => {
     if (gameMode === 'online' || winner || moveHistory.length === 0) return;
 
@@ -1250,7 +1286,7 @@ export function AppScreens() {
         console.log('Sign-in cancelled by user');
       } else {
         console.error('Login error:', error);
-        alert('Failed to sign in. Please try again.');
+        toast.error('Échec de la connexion. Veuillez réessayer.');
       }
     } finally {
       setIsLoggingIn(false);
@@ -2930,6 +2966,24 @@ export function AppScreens() {
                   </div>
                 </div>
               </section>
+
+              {/* Danger Zone */}
+              {user && (
+                <div className="pt-8 border-t border-zinc-100">
+                  <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4">Zone de Danger</h4>
+                  <button 
+                    onClick={deleteAccount}
+                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors"
+                  >
+                    <X size={20} />
+                    Supprimer mon compte et mes données
+                  </button>
+                  <p className="mt-4 text-[10px] text-zinc-400 text-center leading-relaxed">
+                    Conformément au RGPD, vous avez le droit à l'effacement de vos données. 
+                    Cette action supprimera définitivement votre profil, votre ELO et votre historique de matchs.
+                  </p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
