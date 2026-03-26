@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Settings, Trophy, User, ChevronLeft, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send } from 'lucide-react';
+import { Play, Settings, Trophy, User, ChevronLeft, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { GomokuBoard } from './GomokuBoard';
 import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull } from '../game/engine';
 import { getBestMove, getCoachAdvice, Difficulty } from '../game/ai';
@@ -11,6 +12,10 @@ import { doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, order
 
 import { MusicPlayer } from './MusicPlayer';
 import { TutorialScreen } from './TutorialScreen';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, Legend, AreaChart, Area
+} from 'recharts';
 
 const AMBIENT_COLORS = [
   { name: 'Aucun', value: 'transparent' },
@@ -29,7 +34,7 @@ const AMBIENT_COLORS = [
   { name: 'Orange Fluo', value: '#ff6600' },
 ];
 
-type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial';
+type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial' | 'support' | 'privacy';
 type GameMode = 'pvp' | 'pve' | 'online';
 type BoardSize = 15 | 19;
 type RuleSet = 'casual' | 'renju';
@@ -42,6 +47,29 @@ interface ChatMessage {
   text: string;
   timestamp: number;
   isMe: boolean;
+}
+
+const COLOR_MAP: Record<string, string> = {
+  emerald: '#10b981', cyan: '#06b6d4', green: '#22c55e', red: '#ef4444',
+  orange: '#f97316', blue: '#3b82f6', teal: '#14b8a6', gray: '#6b7280',
+  gold: '#eab308', yellow: '#eab308', silver: '#9ca3af', purple: '#a855f7',
+  crimson: '#dc2626', brown: '#78350f', sky: '#0ea5e9', indigo: '#6366f1',
+  lime: '#84cc16', white: '#ffffff', black: '#000000'
+};
+
+interface SavedGameState {
+  board: BoardState;
+  currentPlayer: Player;
+  moveHistory: { row: number; col: number; player: Player }[];
+  gameMode: GameMode;
+  boardSize: BoardSize;
+  aiDifficulty: Difficulty;
+  startingPlayer: StartingPlayer;
+  timeLimit: TimeLimit;
+  selectedSkinId: SkinId;
+  selectedCharacterId: string;
+  lastMove: { row: number; col: number } | null;
+  ruleSet: RuleSet;
 }
 
 export function AppScreens() {
@@ -100,6 +128,7 @@ export function AppScreens() {
   const [replayMatch, setReplayMatch] = useState<MatchRecord | null>(null);
   const [replayMoveIndex, setReplayMoveIndex] = useState<number>(0);
   const [replayBoard, setReplayBoard] = useState<BoardState>([]);
+  const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
 
   // Settings
   const [boardSize, setBoardSize] = useState<BoardSize>(() => {
@@ -120,6 +149,10 @@ export function AppScreens() {
   });
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('gomoku_soundEnabled');
+    return saved === null ? true : saved === 'true';
+  });
+  const [musicEnabled, setMusicEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('gomoku_musicEnabled');
     return saved === null ? true : saved === 'true';
   });
   const [selectedSkinId, setSelectedSkinId] = useState<SkinId>(() => {
@@ -267,6 +300,45 @@ export function AppScreens() {
   }, [soundEnabled, user, isAuthLoading]);
 
   useEffect(() => {
+    localStorage.setItem('gomoku_musicEnabled', musicEnabled.toString());
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, 'users', user.uid), { 'settings.musicEnabled': musicEnabled }).catch(err => console.error("Error saving musicEnabled:", err));
+    }
+  }, [musicEnabled, user, isAuthLoading]);
+
+  useEffect(() => {
+    const audio = document.getElementById('bg-music') as HTMLAudioElement;
+    
+    const handleInteraction = () => {
+      if (audio && musicEnabled) {
+        audio.volume = 0.3;
+        audio.play().catch(e => console.log("Audio play failed:", e));
+      }
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+    };
+
+    if (audio) {
+      if (musicEnabled) {
+        audio.volume = 0.3; // Set a reasonable background volume
+        audio.play().catch(e => {
+          console.log("Audio play failed (autoplay blocked), waiting for interaction:", e);
+          document.addEventListener('click', handleInteraction);
+          document.addEventListener('keydown', handleInteraction);
+        });
+      } else {
+        audio.pause();
+      }
+    }
+
+    return () => {
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+    };
+  }, [musicEnabled]);
+
+  useEffect(() => {
     localStorage.setItem('gomoku_selectedSkinId', selectedSkinId);
     if (user && !isAuthLoading) {
       updateDoc(doc(db, 'users', user.uid), { 'settings.selectedSkin': selectedSkinId }).catch(err => console.error("Error saving selectedSkin:", err));
@@ -301,6 +373,90 @@ export function AppScreens() {
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
   const [hasForfeited, setHasForfeited] = useState(false);
+  const [hasSavedGame, setHasSavedGame] = useState(false);
+
+  useEffect(() => {
+    const checkSavedGame = () => {
+      setHasSavedGame(!!localStorage.getItem('gomoku_saved_game'));
+    };
+    checkSavedGame();
+    // Also check when screen changes to home
+    if (currentScreen === 'home') {
+      checkSavedGame();
+    }
+  }, [currentScreen]);
+
+  useEffect(() => {
+    if (currentScreen === 'game' && !winner && gameMode !== 'online') {
+      const gameState: SavedGameState = {
+        board,
+        currentPlayer,
+        moveHistory,
+        gameMode,
+        boardSize,
+        aiDifficulty,
+        startingPlayer,
+        timeLimit,
+        selectedSkinId,
+        selectedCharacterId,
+        lastMove,
+        ruleSet
+      };
+      localStorage.setItem('gomoku_saved_game', JSON.stringify(gameState));
+    } else if (winner || currentScreen === 'home') {
+      // If game is won, clear saved state
+      if (winner) {
+        localStorage.removeItem('gomoku_saved_game');
+      }
+    }
+  }, [board, currentPlayer, moveHistory, winner, gameMode, boardSize, aiDifficulty, startingPlayer, timeLimit, selectedSkinId, selectedCharacterId, lastMove, ruleSet, currentScreen]);
+
+  const resumeGame = () => {
+    const saved = localStorage.getItem('gomoku_saved_game');
+    if (saved) {
+      try {
+        const state: SavedGameState = JSON.parse(saved);
+        setBoard(state.board);
+        setCurrentPlayer(state.currentPlayer);
+        setMoveHistory(state.moveHistory);
+        setGameMode(state.gameMode);
+        setBoardSize(state.boardSize);
+        setAiDifficulty(state.aiDifficulty);
+        setStartingPlayer(state.startingPlayer);
+        setTimeLimitSetting(state.timeLimit);
+        setSelectedSkinId(state.selectedSkinId);
+        setSelectedCharacterId(state.selectedCharacterId);
+        setLastMove(state.lastMove);
+        setRuleSet(state.ruleSet);
+        
+        setWinner(null);
+        setWinningLine(null);
+        setCoachAdvice(null);
+        setHasForfeited(false);
+        setOnlineOpponentLeft(false);
+        setEndReason(null);
+        setEloChange(null);
+        setTimeLeft(state.timeLimit || 30);
+        
+        setCurrentScreen('game');
+      } catch (e) {
+        console.error("Error parsing saved game:", e);
+        localStorage.removeItem('gomoku_saved_game');
+        setHasSavedGame(false);
+      }
+    }
+  };
+
+  const calculateEloChange = (pElo: number, oElo: number, result: 'win' | 'loss' | 'draw') => {
+    const K = pElo > 2000 ? 16 : 32;
+    const expectedScore = 1 / (1 + Math.pow(10, (oElo - pElo) / 400));
+    let actualScore = 0.5;
+    if (result === 'win') actualScore = 1;
+    if (result === 'loss') actualScore = 0;
+    
+    const change = Math.round(K * (actualScore - expectedScore));
+    return change;
+  };
 
   const saveMatchToFirestore = async (record: MatchRecord) => {
     if (!user) return;
@@ -318,20 +474,47 @@ export function AppScreens() {
         player1EloBefore: record.playerEloBefore,
         player1EloAfter: record.playerEloAfter,
         player2EloBefore: record.opponentElo,
-        player2EloAfter: record.opponentElo, // For now, we don't track AI elo changes here
+        player2EloAfter: record.opponentElo,
         selectedSkin: record.selectedSkin,
         selectedCharacter: record.selectedCharacter
       };
 
       await addDoc(collection(db, 'matches'), matchData);
       
-      // Update user profile
+      // Update user profile with stats
       const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const currentData = userDoc.data() as UserProfile;
+      
+      const oldStats = currentData.stats || {
+        wins: 0, losses: 0, draws: 0, winStreak: 0, maxWinStreak: 0, totalMoves: 0, totalGames: 0
+      };
+
+      const isWin = record.result === 'win';
+      const isLoss = record.result === 'loss';
+      const isDraw = record.result === 'draw';
+
+      const newWinStreak = isWin ? oldStats.winStreak + 1 : 0;
+      
+      const newStats = {
+        wins: oldStats.wins + (isWin ? 1 : 0),
+        losses: oldStats.losses + (isLoss ? 1 : 0),
+        draws: oldStats.draws + (isDraw ? 1 : 0),
+        winStreak: newWinStreak,
+        maxWinStreak: Math.max(oldStats.maxWinStreak, newWinStreak),
+        totalMoves: oldStats.totalMoves + record.moves.length,
+        totalGames: oldStats.totalGames + 1
+      };
+
       await updateDoc(userDocRef, {
         elo: record.playerEloAfter,
         rank: getRankTier(record.playerEloAfter).name,
-        lastPlayed: serverTimestamp()
+        lastPlayed: serverTimestamp(),
+        stats: newStats
       });
+      
+      setPlayerElo(record.playerEloAfter);
+      setUserProfile(prev => prev ? { ...prev, elo: record.playerEloAfter, stats: newStats } : null);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'matches');
     }
@@ -361,6 +544,7 @@ export function AppScreens() {
             if (data.settings.startingPlayer) setStartingPlayer(data.settings.startingPlayer);
             if (data.settings.aiDifficulty) setAiDifficulty(data.settings.aiDifficulty);
             if (data.settings.soundEnabled !== undefined) setSoundEnabled(data.settings.soundEnabled);
+            if (data.settings.musicEnabled !== undefined) setMusicEnabled(data.settings.musicEnabled);
             if (data.settings.selectedSkin) setSelectedSkinId(data.settings.selectedSkin as SkinId);
             if (data.settings.selectedCharacter) setSelectedCharacterId(data.settings.selectedCharacter);
             
@@ -400,6 +584,7 @@ export function AppScreens() {
               startingPlayer,
               aiDifficulty,
               soundEnabled,
+              musicEnabled,
               selectedSkin: selectedSkinId,
               selectedCharacter: selectedCharacterId
             }
@@ -448,6 +633,19 @@ export function AppScreens() {
   useEffect(() => {
     // Firebase Auth handles ELO and history sync
   }, []);
+
+  useEffect(() => {
+    if (currentScreen === 'stats') {
+      const q = query(collection(db, 'users'), orderBy('elo', 'desc'), limit(10));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const topPlayers = snapshot.docs.map(doc => doc.data() as UserProfile);
+        setLeaderboard(topPlayers);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'users');
+      });
+      return () => unsubscribe();
+    }
+  }, [currentScreen]);
 
   const handleCreateCustomCharacter = async () => {
     if (!user || !newCharName || !newCharAvatar) return;
@@ -515,6 +713,17 @@ export function AppScreens() {
     const nextIndex = (currentIndex + 1) % AMBIENT_COLORS.length;
     setAmbientColor(AMBIENT_COLORS[nextIndex].value);
   };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Pick a random color from AMBIENT_COLORS, excluding 'transparent' (the first element)
+      // to ensure the border is always visible.
+      const randomIndex = Math.floor(Math.random() * (AMBIENT_COLORS.length - 1)) + 1;
+      setAmbientColor(AMBIENT_COLORS[randomIndex].value);
+    }, 120000); // 2 minutes in milliseconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -728,14 +937,13 @@ export function AppScreens() {
 
   useEffect(() => {
     if (timeLimit === 0 || winner || onlineOpponentLeft) return;
-    if (gameMode === 'pvp') return; // No timer in Pass & Play
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
           // Auto-lose on timeout
-          if (gameMode === 'pve') {
+          if (gameMode === 'pve' || gameMode === 'pvp') {
             setWinner(currentPlayer === 'black' ? 'white' : 'black');
             playSound('win'); // Or lose sound
           }
@@ -747,6 +955,59 @@ export function AppScreens() {
 
     return () => clearInterval(timer);
   }, [currentPlayer, gameMode, winner, onlinePlayerColor, timeLimit, startingPlayer, onlineOpponentLeft]);
+
+  useEffect(() => {
+    if (winner && winner !== 'draw') {
+      const duration = 4 * 1000;
+      const animationEnd = Date.now() + duration;
+      const isBlack = winner === 'black';
+      const colors = isBlack 
+        ? ['#18181b', '#3f3f46', '#71717a', '#D4AF37', '#FFDF00'] 
+        : ['#ffffff', '#f4f4f5', '#e4e4e7', '#D4AF37', '#FFDF00'];
+
+      const defaults = { 
+        startVelocity: 25, 
+        spread: 360, 
+        ticks: 150, 
+        zIndex: 100,
+        shapes: ['circle'] as confetti.Shape[],
+        colors: colors,
+        scalar: 0.8,
+        gravity: 0.6,
+        disableForReducedMotion: true
+      };
+
+      const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+      // Initial big burst
+      confetti({
+        ...defaults,
+        particleCount: 120,
+        spread: 120,
+        origin: { y: 0.6, x: 0.5 }
+      });
+
+      const interval: any = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 25 * (timeLeft / duration);
+        confetti({
+          ...defaults, 
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.9), y: Math.random() - 0.2 }
+        });
+      }, 300);
+
+      return () => {
+        clearInterval(interval);
+        confetti.reset();
+      };
+    }
+  }, [winner]);
 
   const handleCellClick = (row: number, col: number, isAiMove: boolean = false) => {
     if (board[row][col] || winner || onlineOpponentLeft) return;
@@ -780,14 +1041,19 @@ export function AppScreens() {
       setWinningLine(winLine);
       
       // Save local match to history
+      const opponentElo = gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0;
+      const result = currentPlayer === 'black' ? 'win' : 'loss';
+      const eloChange = gameMode === 'pve' ? calculateEloChange(playerElo, opponentElo, result) : 0;
+      const newElo = playerElo + eloChange;
+
       const record: MatchRecord = {
         id: Math.random().toString(36).substring(2, 9),
         date: Date.now(),
         opponent: gameMode === 'pve' ? `AI (${aiDifficulty})` : 'Local Player',
-        opponentElo: gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0,
+        opponentElo: opponentElo,
         playerEloBefore: playerElo,
-        playerEloAfter: playerElo, // No ELO change for local games
-        result: currentPlayer === 'black' ? 'win' : 'loss', // Assuming player is black for simplicity in local
+        playerEloAfter: newElo,
+        result: result,
         moves: [...moveHistory, { row, col, player: currentPlayer }],
         boardSize: boardSize,
         gameMode: gameMode,
@@ -795,18 +1061,23 @@ export function AppScreens() {
         selectedSkin: selectedSkinId,
         selectedCharacter: selectedCharacterId
       };
+      setEloChange(eloChange);
       saveMatchToFirestore(record);
     } else if (isBoardFull(newBoard)) {
       setWinner('draw');
       playSound('draw');
       // Save draw to history
+      const opponentElo = gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0;
+      const eloChange = gameMode === 'pve' ? calculateEloChange(playerElo, opponentElo, 'draw') : 0;
+      const newElo = playerElo + eloChange;
+
       const record: MatchRecord = {
         id: Math.random().toString(36).substring(2, 9),
         date: Date.now(),
         opponent: gameMode === 'pve' ? `AI (${aiDifficulty})` : 'Local Player',
-        opponentElo: gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0,
+        opponentElo: opponentElo,
         playerEloBefore: playerElo,
-        playerEloAfter: playerElo,
+        playerEloAfter: newElo,
         result: 'draw',
         moves: [...moveHistory, { row, col, player: currentPlayer }],
         boardSize: boardSize,
@@ -815,6 +1086,7 @@ export function AppScreens() {
         selectedSkin: selectedSkinId,
         selectedCharacter: selectedCharacterId
       };
+      setEloChange(eloChange);
       saveMatchToFirestore(record);
     } else {
       setCurrentPlayer(currentPlayer === 'black' ? 'white' : 'black');
@@ -858,6 +1130,45 @@ export function AppScreens() {
     setEloChange(null);
     setTimeLeft(30);
     setShowMusicModal(false);
+  };
+
+  const handleUndo = () => {
+    if (gameMode === 'online' || winner || moveHistory.length === 0) return;
+
+    setCoachAdvice(null);
+
+    if (gameMode === 'pvp') {
+      const lastMove = moveHistory[moveHistory.length - 1];
+      const newBoard = board.map(r => [...r]);
+      newBoard[lastMove.row][lastMove.col] = null;
+      setBoard(newBoard);
+      setCurrentPlayer(lastMove.player);
+      setMoveHistory(prev => prev.slice(0, -1));
+      
+      const prevMove = moveHistory.length > 1 ? moveHistory[moveHistory.length - 2] : null;
+      setLastMove(prevMove ? { row: prevMove.row, col: prevMove.col } : null);
+      setTimeLeft(timeLimit);
+    } else if (gameMode === 'pve') {
+      const isLastMoveAi = (startingPlayer === 'human' && moveHistory[moveHistory.length - 1].player === 'white') ||
+                           (startingPlayer === 'ai' && moveHistory[moveHistory.length - 1].player === 'black');
+      
+      const movesToUndo = isLastMoveAi && moveHistory.length >= 2 ? 2 : 1;
+      
+      const newBoard = board.map(r => [...r]);
+      for (let i = 0; i < movesToUndo; i++) {
+        const move = moveHistory[moveHistory.length - 1 - i];
+        newBoard[move.row][move.col] = null;
+      }
+      setBoard(newBoard);
+      
+      const nextPlayer = moveHistory[moveHistory.length - movesToUndo].player;
+      setCurrentPlayer(nextPlayer);
+      setMoveHistory(prev => prev.slice(0, -movesToUndo));
+      
+      const prevMove = moveHistory.length > movesToUndo ? moveHistory[moveHistory.length - movesToUndo - 1] : null;
+      setLastMove(prevMove ? { row: prevMove.row, col: prevMove.col } : null);
+      setTimeLeft(timeLimit);
+    }
   };
 
   const leaveOnlineMatch = () => {
@@ -1005,9 +1316,9 @@ export function AppScreens() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute inset-0 flex flex-col items-center justify-center p-6"
+            className="absolute inset-0 flex flex-col items-center justify-center p-6 overflow-y-auto custom-scrollbar"
           >
-            <div className="text-center mb-12">
+            <div className="text-center mb-12 shrink-0">
               <h1 className="text-6xl font-black tracking-tighter mb-4">GOMOKU</h1>
               <p className="text-zinc-500 font-medium tracking-wide uppercase text-sm mb-8">The Classic Strategy Game</p>
               
@@ -1057,6 +1368,17 @@ export function AppScreens() {
                     <Globe size={20} />
                     Play Online
                   </button>
+
+                  {hasSavedGame && (
+                    <button
+                      onClick={resumeGame}
+                      className="flex items-center justify-center gap-3 bg-amber-500 text-white py-4 px-6 rounded-2xl font-semibold hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20 animate-pulse"
+                    >
+                      <Play size={20} />
+                      Resume Game
+                    </button>
+                  )}
+
                   <button
                     onClick={() => setShowDifficultySelect(true)}
                     className="flex items-center justify-center gap-3 bg-zinc-900 text-white py-4 px-6 rounded-2xl font-semibold hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/20"
@@ -1098,6 +1420,20 @@ export function AppScreens() {
                   >
                     <Settings size={20} />
                     Settings
+                  </button>
+                  <button
+                    onClick={() => setCurrentScreen('support')}
+                    className="flex items-center justify-center gap-3 bg-white text-zinc-900 py-4 px-6 rounded-2xl font-semibold hover:bg-zinc-50 transition-colors border border-zinc-200"
+                  >
+                    <HelpCircle size={20} />
+                    Aide & Support
+                  </button>
+                  <button
+                    onClick={() => setCurrentScreen('privacy')}
+                    className="flex items-center justify-center gap-3 bg-white text-zinc-900 py-4 px-6 rounded-2xl font-semibold hover:bg-zinc-50 transition-colors border border-zinc-200"
+                  >
+                    <ShieldCheck size={20} />
+                    Confidentialité
                   </button>
                 </>
               ) : showOnlineMenu ? (
@@ -1271,10 +1607,10 @@ export function AppScreens() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
-            className="absolute inset-0 flex flex-col p-4 md:p-8"
+            className="absolute inset-0 flex flex-col p-4 md:p-8 overflow-y-auto custom-scrollbar"
           >
             {gameMode === 'online' ? (
-              <div className="flex flex-col h-full max-w-3xl mx-auto w-full justify-between pb-8">
+              <div className="flex flex-col h-full max-w-3xl mx-auto w-full justify-between pb-8 shrink-0">
                 {/* Top: Opponent Info */}
                 <div className="flex items-center justify-between">
                   <div className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-300 ${currentPlayer !== onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100'}`}>
@@ -1456,6 +1792,7 @@ export function AppScreens() {
                           <img src={currentCharacter.avatar} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         )}
                       </div>
+                      <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color || '#6b7280' }} />
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#f5f5f5] rounded-full" />
                     </div>
                     <div>
@@ -1479,8 +1816,8 @@ export function AppScreens() {
                 </div>
               </div>
             ) : (
-              <>
-                <header className="flex items-center justify-between mb-8">
+              <div className="flex flex-col h-full max-w-3xl mx-auto w-full shrink-0">
+                <header className="flex items-center justify-between mb-8 shrink-0">
               <button
                 onClick={() => gameMode === 'online' ? leaveOnlineMatch() : setCurrentScreen('home')}
                 className="p-2 hover:bg-zinc-200 rounded-full transition-colors"
@@ -1489,18 +1826,24 @@ export function AppScreens() {
               </button>
               <div className="flex items-center gap-4">
                 <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${currentPlayer === 'black' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60'}`}>
-                  <img src={gameMode === 'pve' && startingPlayer === 'ai' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="Black Player" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="relative">
+                    <img src={gameMode === 'pve' && startingPlayer === 'ai' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="Black Player" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'ai' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
+                  </div>
                   {gameMode === 'pve' && startingPlayer === 'ai' ? `${CHARACTERS[1].name} (AI)` : (gameMode === 'pvp' ? 'Player 1' : (user?.displayName || currentCharacter.name))}
-                  {gameMode === 'pve' && currentPlayer === 'black' && !winner && timeLimit > 0 && (
+                  {(gameMode === 'pve' || gameMode === 'pvp') && currentPlayer === 'black' && !winner && timeLimit > 0 && (
                     <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
                       00:{timeLeft.toString().padStart(2, '0')}
                     </span>
                   )}
                 </div>
                 <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${currentPlayer === 'white' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60'}`}>
-                  <img src={gameMode === 'pve' && startingPlayer === 'human' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="White Player" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="relative">
+                    <img src={gameMode === 'pve' && startingPlayer === 'human' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="White Player" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'human' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
+                  </div>
                   {gameMode === 'pve' && startingPlayer === 'human' ? `${CHARACTERS[1].name} (AI)` : (gameMode === 'pvp' ? 'Player 2' : (user?.displayName || currentCharacter.name))}
-                  {gameMode === 'pve' && currentPlayer === 'white' && !winner && timeLimit > 0 && (
+                  {(gameMode === 'pve' || gameMode === 'pvp') && currentPlayer === 'white' && !winner && timeLimit > 0 && (
                     <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
                       00:{timeLeft.toString().padStart(2, '0')}
                     </span>
@@ -1523,6 +1866,16 @@ export function AppScreens() {
                   >
                     <Lightbulb size={16} />
                     Coach
+                  </button>
+                )}
+                {(!winner && gameMode !== 'online' && moveHistory.length > 0 && !(gameMode === 'pve' && ((startingPlayer === 'human' && currentPlayer === 'white') || (startingPlayer === 'ai' && currentPlayer === 'black')))) && (
+                  <button 
+                    onClick={handleUndo} 
+                    className="px-4 py-2 bg-amber-100 text-amber-700 rounded-full font-semibold hover:bg-amber-200 transition-colors text-sm flex items-center gap-2"
+                    title="Undo Move"
+                  >
+                    <Undo2 size={16} />
+                    Undo
                   </button>
                 )}
                 {gameMode !== 'online' && (
@@ -1605,7 +1958,7 @@ export function AppScreens() {
                 )}
               </AnimatePresence>
             </main>
-            </>
+              </div>
             )}
 
             <AnimatePresence>
@@ -1765,7 +2118,7 @@ export function AppScreens() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto pb-20"
+            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto custom-scrollbar pb-24"
           >
             <header className="flex items-center gap-4 mb-8 shrink-0">
               <button
@@ -1822,6 +2175,14 @@ export function AppScreens() {
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
                 <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Matches</p>
                 <p className="text-3xl font-black">{matchHistory.length}</p>
+                <div className="flex gap-1 mt-2">
+                  {matchHistory.slice(0, 5).map((m, i) => (
+                    <div key={i} className={`w-2 h-2 rounded-full ${
+                      m.result === 'win' ? 'bg-emerald-500' : 
+                      m.result === 'loss' ? 'bg-rose-500' : 'bg-zinc-300'
+                    }`} />
+                  ))}
+                </div>
               </div>
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
                 <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Win Rate</p>
@@ -1830,6 +2191,146 @@ export function AppScreens() {
                     ? Math.round((matchHistory.filter(m => m.result === 'win').length / matchHistory.length) * 100)
                     : 0}%
                 </p>
+                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">
+                  Streak: {userProfile?.stats?.winStreak || 0} (Max: {userProfile?.stats?.maxWinStreak || 0})
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100 mb-8">
+              <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <Grid size={20} className="text-indigo-500" />
+                ELO Progression
+              </h3>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={matchHistory.slice().reverse().map((m, i) => ({ elo: m.playerEloAfter, name: i + 1 }))}>
+                    <defs>
+                      <linearGradient id="colorElo" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" hide />
+                    <YAxis domain={['dataMin - 50', 'dataMax + 50']} hide />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                      labelStyle={{ display: 'none' }}
+                    />
+                    <Area type="monotone" dataKey="elo" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorElo)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100">
+                <h3 className="text-lg font-bold mb-6">Match Distribution</h3>
+                <div className="h-48 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Wins', value: matchHistory.filter(m => m.result === 'win').length },
+                          { name: 'Losses', value: matchHistory.filter(m => m.result === 'loss').length },
+                          { name: 'Draws', value: matchHistory.filter(m => m.result === 'draw').length },
+                        ]}
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        <Cell fill="#10b981" />
+                        <Cell fill="#ef4444" />
+                        <Cell fill="#71717a" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex justify-center gap-4 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Wins</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Losses</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-zinc-400" />
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Draws</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100">
+                <h3 className="text-lg font-bold mb-6">Advanced Metrics</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-zinc-500 font-medium">Total Moves</span>
+                    <span className="text-sm font-bold">{userProfile?.stats?.totalMoves || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-zinc-500 font-medium">Avg Moves/Game</span>
+                    <span className="text-sm font-bold">
+                      {matchHistory.length > 0 ? Math.round((userProfile?.stats?.totalMoves || 0) / matchHistory.length) : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-zinc-500 font-medium">Max Win Streak</span>
+                    <span className="text-sm font-bold text-emerald-500">{userProfile?.stats?.maxWinStreak || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-zinc-500 font-medium">Games Played</span>
+                    <span className="text-sm font-bold">{userProfile?.stats?.totalGames || 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100 mb-8">
+              <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <Trophy size={20} className="text-amber-500" />
+                Global Leaderboard
+              </h3>
+              <div className="space-y-3">
+                {leaderboard.length === 0 ? (
+                  <p className="text-zinc-400 text-center py-4 text-sm">Loading leaderboard...</p>
+                ) : (
+                  leaderboard.map((player, i) => (
+                    <div 
+                      key={player.uid} 
+                      className={`flex items-center justify-between p-3 rounded-2xl ${
+                        player.uid === user?.uid ? 'bg-indigo-50 border border-indigo-100' : 'bg-zinc-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`w-6 text-center font-black text-xs ${
+                          i === 0 ? 'text-amber-500' : i === 1 ? 'text-zinc-400' : i === 2 ? 'text-amber-700' : 'text-zinc-300'
+                        }`}>
+                          {i + 1}
+                        </span>
+                        <img 
+                          src={player.avatarUrl || `https://i.pravatar.cc/150?u=${player.uid}`} 
+                          alt={player.displayName}
+                          className="w-8 h-8 rounded-full border border-zinc-200"
+                        />
+                        <span className={`font-bold text-sm ${player.uid === user?.uid ? 'text-indigo-600' : 'text-zinc-700'}`}>
+                          {player.displayName}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-zinc-900">{player.elo}</span>
+                        <div 
+                          className="w-2 h-2 rounded-full" 
+                          style={{ backgroundColor: getRankTier(player.elo).color }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -1964,15 +2465,236 @@ export function AppScreens() {
           </motion.div>
         )}
 
+        {currentScreen === 'support' && (
+          <motion.div
+            key="support"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto custom-scrollbar pb-24"
+          >
+            <header className="flex items-center gap-4 mb-8 shrink-0">
+              <button
+                onClick={() => setCurrentScreen('home')}
+                className="p-2 hover:bg-zinc-200 rounded-full transition-colors -ml-2"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <h2 className="text-2xl font-bold">Aide & Support</h2>
+            </header>
+
+            <div className="space-y-6">
+              {/* FAQ Section */}
+              <section className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <HelpCircle size={20} className="text-indigo-500" />
+                  Foire Aux Questions (FAQ)
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-bold text-sm text-zinc-900">Comment jouer au Gomoku ?</h4>
+                    <p className="text-sm text-zinc-500 mt-1">Le but est d'aligner 5 pierres de votre couleur horizontalement, verticalement ou en diagonale.</p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-zinc-900">Comment fonctionne le classement ELO ?</h4>
+                    <p className="text-sm text-zinc-500 mt-1">Votre ELO augmente quand vous gagnez et diminue quand vous perdez. Le gain dépend du niveau de votre adversaire.</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Contact Section */}
+              <section className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Mail size={20} className="text-emerald-500" />
+                  Contactez-nous
+                </h3>
+                <p className="text-sm text-zinc-500 mb-4">Besoin d'aide personnalisée ? Notre équipe est à votre écoute.</p>
+                <a 
+                  href="mailto:support@gomoku-app.fr" 
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-xl text-sm font-bold hover:bg-zinc-800 transition-colors"
+                >
+                  Envoyer un email
+                </a>
+              </section>
+
+              {/* Legal Mentions Section (French Law Compliance) */}
+              <section className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Scale size={20} className="text-amber-500" />
+                  Mentions Légales
+                </h3>
+                <div className="text-xs text-zinc-500 space-y-2 leading-relaxed">
+                  <p><strong>Éditeur :</strong> Gomoku App SAS, 123 Rue de la Stratégie, 75001 Paris, France.</p>
+                  <p><strong>Directeur de la publication :</strong> Claude Pierre Monet.</p>
+                  <p><strong>Hébergement :</strong> Google Cloud Platform (Europe-West2).</p>
+                  <p>Conformément à la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique (LCEN).</p>
+                </div>
+              </section>
+
+              {/* GDPR Section (European Regulation Compliance) */}
+              <section className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <ShieldCheck size={20} className="text-blue-500" />
+                  Protection des Données (RGPD)
+                </h3>
+                <div className="text-xs text-zinc-500 space-y-3 leading-relaxed">
+                  <p>Nous accordons une importance capitale à la protection de vos données personnelles, conformément au Règlement Général sur la Protection des Données (RGPD).</p>
+                  <div>
+                    <p className="font-bold text-zinc-700">Vos Droits :</p>
+                    <ul className="list-disc ml-4 mt-1 space-y-1">
+                      <li>Droit d'accès à vos données.</li>
+                      <li>Droit de rectification ou d'effacement.</li>
+                      <li>Droit à la portabilité de vos données.</li>
+                      <li>Droit d'opposition au traitement.</li>
+                    </ul>
+                  </div>
+                  <p>Pour exercer vos droits, contactez notre Délégué à la Protection des Données (DPO) à l'adresse : <span className="font-bold">dpo@gomoku-app.fr</span>.</p>
+                  <p>Les données collectées (Email Google, ELO, Historique) sont utilisées uniquement pour le fonctionnement du jeu et ne sont jamais revendues.</p>
+                </div>
+              </section>
+
+              {/* Terms of Service (CGU) */}
+              <section className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Info size={20} className="text-zinc-500" />
+                  Conditions Générales d'Utilisation
+                </h3>
+                <div className="text-xs text-zinc-500 space-y-2 leading-relaxed">
+                  <p>L'utilisation de l'application Gomoku implique l'acceptation pleine et entière des présentes CGU.</p>
+                  <p>Tout comportement malveillant, triche ou harcèlement dans le chat en ligne pourra entraîner un bannissement définitif du compte.</p>
+                  <button 
+                    onClick={() => setCurrentScreen('privacy')}
+                    className="text-indigo-600 font-bold hover:underline mt-2 block"
+                  >
+                    Consulter la Politique de Confidentialité complète →
+                  </button>
+                </div>
+              </section>
+
+              <footer className="text-center py-4">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Version 1.2.0 • Fait avec ❤️ en France • Conforme RGPD</p>
+              </footer>
+            </div>
+          </motion.div>
+        )}
+
+        {currentScreen === 'privacy' && (
+          <motion.div
+            key="privacy"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto custom-scrollbar pb-24"
+          >
+            <header className="flex items-center gap-4 mb-8 shrink-0">
+              <button
+                onClick={() => setCurrentScreen('support')}
+                className="p-2 hover:bg-zinc-200 rounded-full transition-colors -ml-2"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <h2 className="text-2xl font-bold">Politique de Confidentialité</h2>
+            </header>
+
+            <div className="space-y-8 text-sm text-zinc-600 leading-relaxed">
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">1. Introduction</h3>
+                <p>La présente Politique de Confidentialité a pour but d'informer les utilisateurs de l'application Gomoku sur la manière dont leurs données personnelles sont collectées, traitées et protégées, conformément au **Règlement Général sur la Protection des Données (RGPD)** et à la **Loi Informatique et Libertés**.</p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">2. Données Collectées</h3>
+                <p className="mb-2">Nous collectons uniquement les données strictement nécessaires au bon fonctionnement du service :</p>
+                <ul className="list-disc ml-5 space-y-2">
+                  <li><span className="font-bold text-zinc-800">Identité :</span> Nom d'affichage, adresse email (via Google Auth), photo de profil.</li>
+                  <li><span className="font-bold text-zinc-800">Données de jeu :</span> Score ELO, historique des matchs, statistiques de jeu, replays.</li>
+                  <li><span className="font-bold text-zinc-800">Données techniques :</span> Adresse IP (pour la sécurité et le matchmaking), type d'appareil, fuseau horaire.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">3. Finalités du Traitement</h3>
+                <p className="mb-2">Vos données sont traitées pour les finalités suivantes :</p>
+                <ul className="list-disc ml-5 space-y-2">
+                  <li>Gestion de votre compte utilisateur et authentification.</li>
+                  <li>Calcul et affichage du classement mondial (Leaderboard).</li>
+                  <li>Mise en relation des joueurs pour les parties en ligne (Matchmaking).</li>
+                  <li>Amélioration de l'expérience de jeu et support technique.</li>
+                  <li>Prévention de la fraude et de la triche.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">4. Base Légale</h3>
+                <p>Le traitement de vos données repose sur votre **consentement** (lors de la connexion via Google) et sur la **nécessité contractuelle** de fournir le service de jeu en ligne.</p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">5. Conservation des Données</h3>
+                <p>Vos données sont conservées tant que votre compte est actif. En cas d'inactivité prolongée (plus de 2 ans) ou sur simple demande de votre part, vos données personnelles seront supprimées ou anonymisées, à l'exception de celles dont la conservation est requise par la loi.</p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">6. Destinataires des Données</h3>
+                <p>Vos données sont exclusivement destinées à Gomoku App. Elles sont hébergées sur les serveurs sécurisés de **Google Cloud Platform (GCP)** situés au sein de l'Union Européenne. Aucune donnée n'est vendue ou louée à des tiers.</p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">7. Vos Droits (RGPD)</h3>
+                <p className="mb-4">Conformément au RGPD, vous disposez des droits suivants :</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-zinc-100 p-4 rounded-2xl">
+                    <h4 className="font-bold text-zinc-900 mb-1">Accès & Rectification</h4>
+                    <p className="text-xs">Consulter et modifier vos informations à tout moment.</p>
+                  </div>
+                  <div className="bg-zinc-100 p-4 rounded-2xl">
+                    <h4 className="font-bold text-zinc-900 mb-1">Effacement (Droit à l'oubli)</h4>
+                    <p className="text-xs">Demander la suppression définitive de votre compte.</p>
+                  </div>
+                  <div className="bg-zinc-100 p-4 rounded-2xl">
+                    <h4 className="font-bold text-zinc-900 mb-1">Portabilité</h4>
+                    <p className="text-xs">Récupérer vos données dans un format structuré.</p>
+                  </div>
+                  <div className="bg-zinc-100 p-4 rounded-2xl">
+                    <h4 className="font-bold text-zinc-900 mb-1">Opposition</h4>
+                    <p className="text-xs">Refuser certains traitements de vos données.</p>
+                  </div>
+                </div>
+                <p className="mt-4">Pour exercer ces droits, contactez notre DPO : <span className="font-bold text-indigo-600">dpo@gomoku-app.fr</span>.</p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">8. Cookies</h3>
+                <p>Nous utilisons uniquement des cookies techniques essentiels à l'authentification et au maintien de votre session. Aucun cookie publicitaire ou de traçage tiers n'est utilisé.</p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-black text-zinc-900 mb-4 uppercase tracking-tight">9. Sécurité</h3>
+                <p>Nous mettons en œuvre des mesures de sécurité techniques et organisationnelles (chiffrement SSL/TLS, contrôle d'accès strict) pour protéger vos données contre tout accès non autorisé ou perte.</p>
+              </section>
+
+              <footer className="pt-8 border-t border-zinc-200 text-center">
+                <p className="text-xs font-bold text-zinc-400">Dernière mise à jour : 26 Mars 2026</p>
+                <button 
+                  onClick={() => setCurrentScreen('home')}
+                  className="mt-6 px-8 py-3 bg-zinc-900 text-white rounded-2xl font-bold hover:bg-zinc-800 transition-all"
+                >
+                  Retour à l'accueil
+                </button>
+              </footer>
+            </div>
+          </motion.div>
+        )}
+
         {currentScreen === 'settings' && (
           <motion.div
             key="settings"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full"
+            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto custom-scrollbar pb-24"
           >
-            <header className="flex items-center gap-4 mb-8">
+            <header className="flex items-center gap-4 mb-8 shrink-0">
               <button
                 onClick={() => setCurrentScreen('home')}
                 className="p-2 hover:bg-zinc-200 rounded-full transition-colors -ml-2"
@@ -2031,7 +2753,7 @@ export function AppScreens() {
                   <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
                       <RefreshCw size={20} className="text-zinc-400" />
-                      <span className="font-medium">Time Limit (Online/PvE)</span>
+                      <span className="font-medium">Time Limit (Per Turn)</span>
                     </div>
                     <select 
                       value={timeLimit}
@@ -2055,20 +2777,28 @@ export function AppScreens() {
                       <User size={20} className="text-zinc-400" />
                       <span className="font-medium">Select Character</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[...CHARACTERS, ...(userProfile?.customCharacters || [])].map(char => (
+                    <div className="grid grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                      {[...CHARACTERS, ...(userProfile?.customCharacters || [])].map(char => {
+                        const charColor = char.color ? (COLOR_MAP[char.color.toLowerCase()] || char.color) : '#6b7280';
+                        return (
                         <button
                           key={char.id}
                           onClick={() => {
                             setSelectedCharacterId(char.id);
                             setSelectedSkinId(char.defaultSkin);
                           }}
-                          className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${
+                          className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${
                             selectedCharacterId === char.id 
-                              ? 'border-zinc-900 bg-zinc-50' 
+                              ? 'bg-zinc-50 shadow-md scale-105' 
                               : 'border-transparent bg-zinc-100 hover:bg-zinc-200'
                           }`}
+                          style={{ borderColor: selectedCharacterId === char.id ? charColor : 'transparent' }}
                         >
+                          <div 
+                            className="absolute top-2 right-2 w-3 h-3 rounded-full border border-black/10 shadow-sm"
+                            style={{ backgroundColor: charColor }}
+                            title={`Color: ${char.color}`}
+                          />
                           <img 
                             src={char.avatar} 
                             alt={char.name} 
@@ -2077,7 +2807,7 @@ export function AppScreens() {
                           />
                           <span className="text-xs font-bold text-center">{char.name}</span>
                         </button>
-                      ))}
+                      )})}
                     </div>
                   </div>
                   <div className="p-4">
@@ -2085,7 +2815,7 @@ export function AppScreens() {
                       <Palette size={20} className="text-zinc-400" />
                       <span className="font-medium">Board & Stone Skin</span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
                       {[...SKINS, ...(userProfile?.customSkins || [])].map(skin => (
                         <button
                           key={skin.id + (skin.isCustom ? `_${skin.name}` : '')}
@@ -2156,6 +2886,21 @@ export function AppScreens() {
                       <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
                     </label>
                   </div>
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+                    <div className="flex items-center gap-3">
+                      <Music size={20} className="text-zinc-400" />
+                      <span className="font-medium">Background Music</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={musicEnabled}
+                        onChange={(e) => setMusicEnabled(e.target.checked)}
+                      />
+                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                    </label>
+                  </div>
                 </div>
               </section>
 
@@ -2205,9 +2950,9 @@ export function AppScreens() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="absolute inset-0 flex flex-col p-6 overflow-y-auto"
+            className="absolute inset-0 flex flex-col p-6 overflow-y-auto custom-scrollbar"
           >
-            <div className="max-w-2xl mx-auto w-full pb-24">
+            <div className="max-w-2xl mx-auto w-full pb-24 shrink-0">
               <header className="flex items-center gap-4 mb-8">
                 <button 
                   onClick={() => setCurrentScreen('home')}
@@ -2331,6 +3076,23 @@ export function AppScreens() {
                     </div>
 
                     <div className="space-y-6">
+                      {/* Live Preview */}
+                      <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex items-center gap-4">
+                        <img 
+                          src={newCharAvatar || "https://picsum.photos/seed/placeholder/200/200"} 
+                          alt="Preview" 
+                          className="w-16 h-16 rounded-2xl object-cover shadow-sm bg-zinc-200"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://picsum.photos/seed/placeholder/200/200";
+                          }}
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-bold text-zinc-900">{newCharName || "Character Name"}</h4>
+                          <p className="text-xs text-zinc-500 line-clamp-2">{newCharBio || "Character biography will appear here..."}</p>
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Character Name</label>
                         <input 
@@ -2423,13 +3185,59 @@ export function AppScreens() {
                         </div>
                       </div>
                       
-                      <div className="p-6 bg-zinc-100 rounded-3xl flex items-center justify-center gap-4">
-                        <div 
-                          className="w-24 h-24 rounded-2xl flex items-center justify-center gap-2 shadow-inner"
-                          style={{ backgroundColor: newSkinBoardColor }}
-                        >
-                          <div className={`w-6 h-6 rounded-full ${newSkinBlackStone}`} />
-                          <div className={`w-6 h-6 rounded-full ${newSkinWhiteStone}`} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Black Stone Style</label>
+                          <select 
+                            value={newSkinBlackStone}
+                            onChange={(e) => setNewSkinBlackStone(e.target.value)}
+                            className="w-full bg-zinc-100 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
+                          >
+                            <option value="bg-zinc-900">Classic Black</option>
+                            <option value="bg-gradient-to-br from-gray-700 to-black">Obsidian</option>
+                            <option value="bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.5)]">Neon Purple</option>
+                            <option value="bg-gradient-to-br from-stone-800 to-stone-950">Dark Wood</option>
+                            <option value="bg-black/80 backdrop-blur-sm border border-white/20">Dark Glass</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">White Stone Style</label>
+                          <select 
+                            value={newSkinWhiteStone}
+                            onChange={(e) => setNewSkinWhiteStone(e.target.value)}
+                            className="w-full bg-zinc-100 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
+                          >
+                            <option value="bg-white border-2 border-zinc-200">Classic White</option>
+                            <option value="bg-gradient-to-br from-gray-100 to-gray-300 border border-gray-400">Marble</option>
+                            <option value="bg-gradient-to-br from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]">Neon Cyan</option>
+                            <option value="bg-gradient-to-br from-stone-200 to-stone-400">Light Wood</option>
+                            <option value="bg-white/80 backdrop-blur-sm border border-white/40">Light Glass</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      {/* Live Preview */}
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Live Preview</label>
+                        <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-100 flex items-center justify-center">
+                          <div 
+                            className="w-48 h-48 rounded-xl relative shadow-inner overflow-hidden"
+                            style={{ backgroundColor: newSkinBoardColor }}
+                          >
+                            {/* Grid lines */}
+                            <div className="absolute inset-0 flex flex-col justify-evenly px-4">
+                              {[1,2,3,4,5].map(i => <div key={`h-${i}`} className="w-full h-[2px] rounded-full" style={{ backgroundColor: newSkinLineColor }} />)}
+                            </div>
+                            <div className="absolute inset-0 flex justify-evenly py-4">
+                              {[1,2,3,4,5].map(i => <div key={`v-${i}`} className="h-full w-[2px] rounded-full" style={{ backgroundColor: newSkinLineColor }} />)}
+                            </div>
+                            
+                            {/* Stones */}
+                            <div className="absolute inset-0 flex items-center justify-center gap-4">
+                              <div className={`w-8 h-8 rounded-full shadow-lg ${newSkinBlackStone}`} />
+                              <div className={`w-8 h-8 rounded-full shadow-lg ${newSkinWhiteStone}`} />
+                            </div>
+                          </div>
                         </div>
                       </div>
 
@@ -2459,6 +3267,13 @@ export function AppScreens() {
       >
         <Palette size={24} color={ambientColor !== 'transparent' ? ambientColor : 'currentColor'} />
       </button>
+
+      {/* Background Music */}
+      <audio 
+        id="bg-music" 
+        loop 
+        src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3" 
+      />
     </div>
   );
 }
