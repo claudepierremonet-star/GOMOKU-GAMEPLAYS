@@ -31,6 +31,7 @@ interface Room {
   currentPlayer: Player;
   winner: Player | 'draw' | null;
   boardSize: number;
+  ruleSet: string;
   timeLimit: number;
   lastMoveTime: number;
 }
@@ -63,7 +64,7 @@ function createEmptyBoard(size: number): BoardState {
 }
 
 // Basic win check for server validation
-function checkWin(board: BoardState, row: number, col: number, player: Player): [number, number][] | null {
+function checkWin(board: BoardState, row: number, col: number, player: Player, isRenju: boolean = false): [number, number][] | null {
   const size = board.length;
   const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
@@ -87,6 +88,11 @@ function checkWin(board: BoardState, row: number, col: number, player: Player): 
         line.push([r, c]);
       } else break;
     }
+
+    if (isRenju && player === 'black' && count > 5) {
+      continue; // Overline is a foul for black in Renju
+    }
+
     if (count >= 5) return line.slice(0, 5);
   }
   return null;
@@ -122,6 +128,7 @@ async function startServer() {
       currentPlayer: 'black',
       winner: null,
       boardSize: p1.boardSize,
+      ruleSet: p1.ruleSet,
       timeLimit: p1.timeLimit,
       lastMoveTime: Date.now()
     });
@@ -468,6 +475,7 @@ async function startServer() {
         currentPlayer: 'black',
         winner: null,
         boardSize,
+        ruleSet: ruleSet || 'casual',
         timeLimit: timeLimit || 30,
         lastMoveTime: Date.now()
       });
@@ -530,7 +538,7 @@ async function startServer() {
       room.board[row][col] = playerColor;
       room.lastMoveTime = Date.now();
       
-      const winLine = checkWin(room.board, row, col, playerColor);
+      const winLine = checkWin(room.board, row, col, playerColor, room.ruleSet === 'renju');
       let newEloBlack, newEloWhite;
 
       if (winLine || isBoardFull(room.board)) {
@@ -612,9 +620,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const distPath = __dirname;
+    app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 

@@ -116,8 +116,19 @@ export function AppScreens() {
 
   const [onlineOpponentLeft, setOnlineOpponentLeft] = useState(false);
   const [endReason, setEndReason] = useState<string | null>(null);
-  const [playerElo, setPlayerElo] = useState<number>(1200);
-  const [opponentElo, setOpponentElo] = useState<number | null>(null);
+  const [playerElo, setPlayerEloState] = useState<number>(1200);
+  const playerEloRef = useRef<number>(1200);
+  const setPlayerElo = (elo: number) => {
+    setPlayerEloState(elo);
+    playerEloRef.current = elo;
+  };
+
+  const [opponentElo, setOpponentEloState] = useState<number | null>(null);
+  const opponentEloRef = useRef<number | null>(null);
+  const setOpponentElo = (elo: number | null) => {
+    setOpponentEloState(elo);
+    opponentEloRef.current = elo;
+  };
   const [opponentUserId, setOpponentUserId] = useState<string | null>(null);
   const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -804,32 +815,30 @@ export function AppScreens() {
           const newPlayerElo = isBlack ? data.newElo.black : data.newElo.white;
           const newOpponentElo = isBlack ? data.newElo.white : data.newElo.black;
           
-          setPlayerElo(prev => {
-            const diff = newPlayerElo - prev;
-            setEloChange(diff);
-            
-            // Save to history
-            const record: MatchRecord = {
-              id: Math.random().toString(36).substring(2, 9),
-              date: Date.now(),
-              opponent: opponentUserIdRef.current || 'Unknown',
-              opponentElo: newOpponentElo,
-              playerEloBefore: prev,
-              playerEloAfter: newPlayerElo,
-              result: data.winner === 'draw' ? 'draw' : (data.winner === onlinePlayerColorRef.current ? 'win' : 'loss'),
-              moves: updatedHistory,
-              boardSize: boardSizeRef.current,
-              gameMode: 'online',
-              winner: data.winner,
-              selectedSkin: selectedSkinId,
-              selectedCharacter: selectedCharacterId
-            };
-            
-            saveMatchToFirestore(record);
-
-            return newPlayerElo;
-          });
+          const oldPlayerElo = playerEloRef.current;
+          const diff = newPlayerElo - oldPlayerElo;
+          setEloChange(diff);
+          setPlayerElo(newPlayerElo);
           setOpponentElo(newOpponentElo);
+          
+          // Save to history
+          const record: MatchRecord = {
+            id: Math.random().toString(36).substring(2, 9),
+            date: Date.now(),
+            opponent: opponentUserIdRef.current || 'Unknown',
+            opponentElo: newOpponentElo,
+            playerEloBefore: oldPlayerElo,
+            playerEloAfter: newPlayerElo,
+            result: data.winner === 'draw' ? 'draw' : (data.winner === onlinePlayerColorRef.current ? 'win' : 'loss'),
+            moves: updatedHistory,
+            boardSize: boardSizeRef.current,
+            gameMode: 'online',
+            winner: data.winner,
+            selectedSkin: selectedSkinId,
+            selectedCharacter: selectedCharacterId
+          };
+          
+          saveMatchToFirestore(record);
         }
       }
     };
@@ -845,32 +854,30 @@ export function AppScreens() {
         const newPlayerElo = isBlack ? data.newElo.black : data.newElo.white;
         const newOpponentElo = isBlack ? data.newElo.white : data.newElo.black;
         
-        setPlayerElo(prev => {
-          const diff = newPlayerElo - prev;
-          setEloChange(diff);
-          
-          // Save to history
-          const record: MatchRecord = {
-            id: Math.random().toString(36).substring(2, 9),
-            date: Date.now(),
-            opponent: opponentUserIdRef.current || 'Unknown',
-            opponentElo: newOpponentElo,
-            playerEloBefore: prev,
-            playerEloAfter: newPlayerElo,
-            result: data.winner === onlinePlayerColorRef.current ? 'win' : 'loss',
-            moves: [...moveHistoryRef.current],
-            boardSize: boardSizeRef.current,
-            gameMode: 'online',
-            winner: data.winner,
-            selectedSkin: selectedSkinId,
-            selectedCharacter: selectedCharacterId
-          };
-          
-          saveMatchToFirestore(record);
-
-          return newPlayerElo;
-        });
+        const oldPlayerElo = playerEloRef.current;
+        const diff = newPlayerElo - oldPlayerElo;
+        setEloChange(diff);
+        setPlayerElo(newPlayerElo);
         setOpponentElo(newOpponentElo);
+        
+        // Save to history
+        const record: MatchRecord = {
+          id: Math.random().toString(36).substring(2, 9),
+          date: Date.now(),
+          opponent: opponentUserIdRef.current || 'Unknown',
+          opponentElo: newOpponentElo,
+          playerEloBefore: oldPlayerElo,
+          playerEloAfter: newPlayerElo,
+          result: data.winner === onlinePlayerColorRef.current ? 'win' : 'loss',
+          moves: [...moveHistoryRef.current],
+          boardSize: boardSizeRef.current,
+          gameMode: 'online',
+          winner: data.winner,
+          selectedSkin: selectedSkinId,
+          selectedCharacter: selectedCharacterId
+        };
+        
+        saveMatchToFirestore(record);
       }
     };
 
