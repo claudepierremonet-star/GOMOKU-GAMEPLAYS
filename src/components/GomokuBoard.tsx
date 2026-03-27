@@ -1,5 +1,5 @@
 import React from 'react';
-import { BoardState, Player } from '../game/engine';
+import { BoardState, Player, Threat } from '../game/engine';
 import { motion } from 'motion/react';
 import { Skin } from '../types';
 
@@ -10,9 +10,10 @@ interface GomokuBoardProps {
   lastMove: { row: number; col: number } | null;
   coachMove?: { row: number; col: number } | null;
   skin: Skin;
+  threats?: Threat[];
 }
 
-export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, skin }: GomokuBoardProps) {
+export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, skin, threats = [] }: GomokuBoardProps) {
   const size = board.length;
 
   return (
@@ -67,6 +68,9 @@ export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMo
               const isWinningCell = winningLine?.some(([wr, wc]) => wr === r && wc === c);
               const isLastMove = lastMove?.row === r && lastMove?.col === c;
               const isCoachMove = coachMove?.row === r && coachMove?.col === c;
+              
+              const threatTarget = threats.find(t => t.targets.some(([tr, tc]) => tr === r && tc === c));
+              const threatStone = threats.find(t => t.stones.some(([sr, sc]) => sr === r && sc === c));
 
               return (
                 <div
@@ -75,12 +79,23 @@ export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMo
                   onClick={() => onCellClick(r, c)}
                 >
                   {/* Hover indicator */}
-                  {!cell && !isCoachMove && (
+                  {!cell && !isCoachMove && !threatTarget && (
                     <div className="absolute w-3/4 h-3/4 rounded-full opacity-0 group-hover:opacity-30 bg-black/20 transition-opacity" />
                   )}
 
+                  {/* Threat Target Indicator */}
+                  {!cell && threatTarget && (
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="absolute w-[85%] h-[85%] rounded-full border-4 border-red-500/50 flex items-center justify-center bg-red-500/10 z-10"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    </motion.div>
+                  )}
+
                   {/* Coach Move Indicator */}
-                  {!cell && isCoachMove && (
+                  {!cell && isCoachMove && !threatTarget && (
                     <motion.div
                       initial={{ scale: 0.5, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
@@ -111,6 +126,15 @@ export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMo
                           animate={{ opacity: [0, 1, 0] }}
                           transition={{ repeat: Infinity, duration: 1.5 }}
                           className="absolute inset-0 rounded-full bg-yellow-400/40"
+                        />
+                      )}
+                      {/* Highlight for threat stone */}
+                      {threatStone && !isWinningCell && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: [0, 1, 0] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                          className="absolute inset-0 rounded-full bg-red-500/30"
                         />
                       )}
                     </motion.div>

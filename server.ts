@@ -461,6 +461,11 @@ async function startServer() {
       }
     });
 
+    socket.on('cancelSearch', () => {
+      waitingPlayers.ranked = waitingPlayers.ranked.filter(p => p.socketId !== socket.id);
+      waitingPlayers.casual = waitingPlayers.casual.filter(p => p.socketId !== socket.id);
+    });
+
     socket.on('createPrivateRoom', ({ boardSize, ruleSet, userId, timeLimit }) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       rooms.set(roomId, {
@@ -562,6 +567,29 @@ async function startServer() {
         winningLine: winLine,
         newElo: newEloBlack ? { black: newEloBlack, white: newEloWhite } : undefined
       });
+    });
+
+    socket.on('forfeitMatch', ({ roomId }) => {
+      const room = rooms.get(roomId);
+      if (room && !room.winner) {
+        const winner = room.players.black === socket.id ? 'white' : 'black';
+        room.winner = winner;
+        let newEloBlack, newEloWhite;
+        
+        if (room.type === 'ranked' && room.playerData) {
+          const scoreBlack = winner === 'black' ? 1 : 0;
+          const scoreWhite = winner === 'white' ? 1 : 0;
+          
+          newEloBlack = calculateElo(room.playerData.black!.elo, room.playerData.white!.elo, scoreBlack);
+          newEloWhite = calculateElo(room.playerData.white!.elo, room.playerData.black!.elo, scoreWhite);
+        }
+        
+        io.to(roomId).emit('matchForfeited', { 
+          winner,
+          forfeitedBy: socket.id,
+          newElo: newEloBlack ? { black: newEloBlack, white: newEloWhite } : undefined
+        });
+      }
     });
 
     socket.on('leaveMatch', ({ roomId }) => {

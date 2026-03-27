@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Settings, Trophy, User, ChevronLeft, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info } from 'lucide-react';
+import { Play, Settings, Trophy, User, ChevronLeft, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GomokuBoard } from './GomokuBoard';
-import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull } from '../game/engine';
+import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull, Threat, findThreats } from '../game/engine';
 import { getBestMove, getCoachAdvice, Difficulty } from '../game/ai';
 import { connectSocket, disconnectSocket, getSocket } from '../game/socket';
 import { MatchRecord, getRankTier, getNextRank, RANK_TIERS, SKINS, CHARACTERS, SkinId, UserProfile, Character, Skin } from '../types';
@@ -11,6 +11,7 @@ import { auth, db, loginWithGoogle, logout, onAuthStateChanged, User as Firebase
 
 import { MusicPlayer } from './MusicPlayer';
 import { TutorialScreen } from './TutorialScreen';
+import { CustomSkinDesigner } from './CustomSkinDesigner';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area
@@ -86,11 +87,6 @@ export function AppScreens() {
   const [isCreatingChar, setIsCreatingChar] = useState(false);
 
   // Custom Skin Creation State
-  const [newSkinName, setNewSkinName] = useState('');
-  const [newSkinBoardColor, setNewSkinBoardColor] = useState('#e6c280');
-  const [newSkinLineColor, setNewSkinLineColor] = useState('rgba(0,0,0,0.4)');
-  const [newSkinBlackStone, setNewSkinBlackStone] = useState('bg-zinc-900');
-  const [newSkinWhiteStone, setNewSkinWhiteStone] = useState('bg-white border-2 border-zinc-200');
   const [isCreatingSkin, setIsCreatingSkin] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>('pve');
@@ -116,6 +112,7 @@ export function AppScreens() {
 
   const [onlineOpponentLeft, setOnlineOpponentLeft] = useState(false);
   const [endReason, setEndReason] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string>('auto');
   const [playerElo, setPlayerEloState] = useState<number>(1200);
   const playerEloRef = useRef<number>(1200);
   const setPlayerElo = (elo: number) => {
@@ -176,7 +173,14 @@ export function AppScreens() {
     return saved || 'master_lin';
   });
 
-  const currentSkin = SKINS.find(s => s.id === selectedSkinId) || SKINS[0];
+  const [localCustomSkins, setLocalCustomSkins] = useState<Skin[]>(() => {
+    const saved = localStorage.getItem('gomoku_customSkins');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const allCustomSkins = userProfile?.customSkins || localCustomSkins;
+  const allSkins = [...SKINS, ...allCustomSkins];
+  const currentSkin = allSkins.find(s => s.id === selectedSkinId) || SKINS[0];
   const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacterId) || CHARACTERS[0];
 
   const soundEnabledRef = useRef<boolean>(true);
@@ -370,6 +374,7 @@ export function AppScreens() {
   const [winningLine, setWinningLine] = useState<[number, number][] | null>(null);
   const [lastMove, setLastMove] = useState<{ row: number; col: number } | null>(null);
   const [coachAdvice, setCoachAdvice] = useState<{ row: number; col: number; explanation: string } | null>(null);
+  const [threats, setThreats] = useState<Threat[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [showChat, setShowChat] = useState(false);
@@ -444,6 +449,7 @@ export function AppScreens() {
         setWinner(null);
         setWinningLine(null);
         setCoachAdvice(null);
+        setThreats(findThreats(state.board, state.currentPlayer));
         setHasForfeited(false);
         setOnlineOpponentLeft(false);
         setEndReason(null);
@@ -690,34 +696,53 @@ export function AppScreens() {
     }
   };
 
-  const handleCreateCustomSkin = async () => {
-    if (!user || !newSkinName) return;
+  const handleDeleteCustomSkin = async (skinId: string) => {
+    if (user && userProfile) {
+      const updatedSkins = (userProfile.customSkins || []).filter(s => s.id !== skinId);
+      const updatedProfile = { ...userProfile, customSkins: updatedSkins };
+      
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { customSkins: updatedSkins });
+        setUserProfile(updatedProfile);
+        if (selectedSkinId === skinId) setSelectedSkinId(SKINS[0].id);
+        toast.success('Skin deleted');
+      } catch (error) {
+        console.error("Error deleting skin:", error);
+        toast.error('Failed to delete skin');
+      }
+    } else {
+      const updatedSkins = localCustomSkins.filter(s => s.id !== skinId);
+      setLocalCustomSkins(updatedSkins);
+      localStorage.setItem('gomoku_customSkins', JSON.stringify(updatedSkins));
+      if (selectedSkinId === skinId) setSelectedSkinId(SKINS[0].id);
+      toast.success('Skin deleted');
+    }
+  };
 
-    const newSkin: Skin = {
-      id: `custom_${Date.now()}`,
-      name: newSkinName,
-      boardColor: newSkinBoardColor,
-      lineColor: newSkinLineColor,
-      blackStone: newSkinBlackStone,
-      whiteStone: newSkinWhiteStone,
-      description: 'Custom created skin',
-      isCustom: true
-    };
+  const handleCreateCustomSkin = async (newSkin: Skin) => {
+    if (user && userProfile) {
+      const updatedProfile = {
+        ...userProfile,
+        customSkins: [...(userProfile.customSkins || []), newSkin]
+      };
 
-    const updatedProfile = {
-      ...userProfile!,
-      customSkins: [...(userProfile?.customSkins || []), newSkin]
-    };
-
-    try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        customSkins: updatedProfile.customSkins
-      });
-      setUserProfile(updatedProfile);
-      setNewSkinName('');
+      try {
+        await updateDoc(doc(db, 'users', user.uid), {
+          customSkins: updatedProfile.customSkins
+        });
+        setUserProfile(updatedProfile);
+        setIsCreatingSkin(false);
+        toast.success('Custom skin saved!');
+      } catch (error) {
+        console.error("Error creating custom skin:", error);
+        toast.error('Failed to save skin');
+      }
+    } else {
+      const updatedSkins = [...localCustomSkins, newSkin];
+      setLocalCustomSkins(updatedSkins);
+      localStorage.setItem('gomoku_customSkins', JSON.stringify(updatedSkins));
       setIsCreatingSkin(false);
-    } catch (error) {
-      console.error("Error creating custom skin:", error);
+      toast.success('Custom skin saved locally!');
     }
   };
   const nextAmbientColor = () => {
@@ -788,6 +813,11 @@ export function AppScreens() {
       setBoard(prev => {
         const newBoard = prev.map(r => [...r]);
         newBoard[data.row][data.col] = data.player;
+        if (!data.winner) {
+          setThreats(findThreats(newBoard, data.nextPlayer));
+        } else {
+          setThreats([]);
+        }
         return newBoard;
       });
       playSound('move');
@@ -847,6 +877,49 @@ export function AppScreens() {
       setOnlineOpponentLeft(true);
       setEndReason(data.reason || null);
       setWinner(data.winner);
+      setThreats([]);
+      playSound('win');
+      
+      if (data.newElo) {
+        const isBlack = onlinePlayerColorRef.current === 'black';
+        const newPlayerElo = isBlack ? data.newElo.black : data.newElo.white;
+        const newOpponentElo = isBlack ? data.newElo.white : data.newElo.black;
+        
+        const oldPlayerElo = playerEloRef.current;
+        const diff = newPlayerElo - oldPlayerElo;
+        setEloChange(diff);
+        setPlayerElo(newPlayerElo);
+        setOpponentElo(newOpponentElo);
+        
+        // Save to history
+        const record: MatchRecord = {
+          id: Math.random().toString(36).substring(2, 9),
+          date: Date.now(),
+          opponent: opponentUserIdRef.current || 'Unknown',
+          opponentElo: newOpponentElo,
+          playerEloBefore: oldPlayerElo,
+          playerEloAfter: newPlayerElo,
+          result: data.winner === onlinePlayerColorRef.current ? 'win' : 'loss',
+          moves: [...moveHistoryRef.current],
+          boardSize: boardSizeRef.current,
+          gameMode: 'online',
+          winner: data.winner,
+          selectedSkin: selectedSkinId,
+          selectedCharacter: selectedCharacterId
+        };
+        
+        saveMatchToFirestore(record);
+      }
+    };
+
+    const onMatchForfeited = (data: { winner: Player, forfeitedBy: string, newElo?: { black: number, white: number } }) => {
+      setWinner(data.winner);
+      setThreats([]);
+      if (data.forfeitedBy === getSocket().id) {
+        setHasForfeited(true);
+      } else {
+        setEndReason('opponent_forfeited');
+      }
       playSound('win');
       
       if (data.newElo) {
@@ -895,6 +968,7 @@ export function AppScreens() {
       toast.error(data.message);
       setIsSearchingMatch(false);
       setSearchStartTime(null);
+      setShowOnlineMenu(true);
     };
 
     const onConnect = () => setIsConnected(true);
@@ -908,6 +982,7 @@ export function AppScreens() {
     socket.on('privateRoomCreated', onPrivateRoomCreated);
     socket.on('moveMade', onMoveMade);
     socket.on('opponentLeft', onOpponentLeft);
+    socket.on('matchForfeited', onMatchForfeited);
     socket.on('receiveMessage', onReceiveMessage);
     socket.on('error', onError);
 
@@ -918,6 +993,7 @@ export function AppScreens() {
       socket.off('privateRoomCreated', onPrivateRoomCreated);
       socket.off('moveMade', onMoveMade);
       socket.off('opponentLeft', onOpponentLeft);
+      socket.off('matchForfeited', onMatchForfeited);
       socket.off('receiveMessage', onReceiveMessage);
       socket.off('error', onError);
     };
@@ -960,6 +1036,7 @@ export function AppScreens() {
           // Auto-lose on timeout
           if (gameMode === 'pve' || gameMode === 'pvp') {
             setWinner(currentPlayer === 'black' ? 'white' : 'black');
+            setThreats([]);
             playSound('win'); // Or lose sound
           }
           return 0;
@@ -1054,6 +1131,7 @@ export function AppScreens() {
       setWinner(currentPlayer);
       playSound('win');
       setWinningLine(winLine);
+      setThreats([]);
       
       // Save local match to history
       const opponentElo = gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0;
@@ -1081,6 +1159,7 @@ export function AppScreens() {
     } else if (isBoardFull(newBoard)) {
       setWinner('draw');
       playSound('draw');
+      setThreats([]);
       // Save draw to history
       const opponentElo = gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0;
       const eloChange = gameMode === 'pve' ? calculateEloChange(playerElo, opponentElo, 'draw') : 0;
@@ -1104,7 +1183,9 @@ export function AppScreens() {
       setEloChange(eloChange);
       saveMatchToFirestore(record);
     } else {
-      setCurrentPlayer(currentPlayer === 'black' ? 'white' : 'black');
+      const nextPlayer = currentPlayer === 'black' ? 'white' : 'black';
+      setCurrentPlayer(nextPlayer);
+      setThreats(findThreats(newBoard, nextPlayer));
     }
   };
 
@@ -1138,6 +1219,7 @@ export function AppScreens() {
     setWinningLine(null);
     setLastMove(null);
     setCoachAdvice(null);
+    setThreats([]);
     setMoveHistory([]);
     setHasForfeited(false);
     setOnlineOpponentLeft(false);
@@ -1186,6 +1268,7 @@ export function AppScreens() {
       newBoard[lastMove.row][lastMove.col] = null;
       setBoard(newBoard);
       setCurrentPlayer(lastMove.player);
+      setThreats(findThreats(newBoard, lastMove.player));
       setMoveHistory(prev => prev.slice(0, -1));
       
       const prevMove = moveHistory.length > 1 ? moveHistory[moveHistory.length - 2] : null;
@@ -1206,6 +1289,7 @@ export function AppScreens() {
       
       const nextPlayer = moveHistory[moveHistory.length - movesToUndo].player;
       setCurrentPlayer(nextPlayer);
+      setThreats(findThreats(newBoard, nextPlayer));
       setMoveHistory(prev => prev.slice(0, -movesToUndo));
       
       const prevMove = moveHistory.length > movesToUndo ? moveHistory[moveHistory.length - movesToUndo - 1] : null;
@@ -1228,8 +1312,10 @@ export function AppScreens() {
 
   const forfeitMatch = () => {
     if (gameMode === 'online' && onlineRoomId) {
-      getSocket().emit('leaveMatch', { roomId: onlineRoomId });
-      setWinner(onlinePlayerColor === 'black' ? 'white' : 'black');
+      getSocket().emit('forfeitMatch', { roomId: onlineRoomId });
+    } else {
+      setWinner(currentPlayer === 'black' ? 'white' : 'black');
+      setThreats([]);
       setHasForfeited(true);
       playSound('win');
     }
@@ -1494,6 +1580,22 @@ export function AppScreens() {
                       <ChevronLeft size={20} />
                     </button>
                   </div>
+
+                  <div className="px-2 mb-4">
+                    <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Server Region</label>
+                    <select
+                      value={selectedRegion}
+                      onChange={(e) => setSelectedRegion(e.target.value)}
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
+                    >
+                      <option value="auto">Auto (Best Ping)</option>
+                      <option value="America/New_York">North America</option>
+                      <option value="Europe/Paris">Europe</option>
+                      <option value="Asia/Tokyo">Asia</option>
+                      <option value="America/Sao_Paulo">South America</option>
+                      <option value="Australia/Sydney">Oceania</option>
+                    </select>
+                  </div>
                   
                   {!privateRoomCode ? (
                     <>
@@ -1502,7 +1604,7 @@ export function AppScreens() {
                           setIsSearchingMatch(true);
                           setSearchStartTime(Date.now());
                           setShowOnlineMenu(false);
-                          const region = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                          const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
                           getSocket().emit('findMatch', { type: 'ranked', boardSize, ruleSet, elo: playerElo, userId: user?.uid, region, timeLimit });
                         }}
                         className="flex items-center gap-3 py-3 px-4 rounded-xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
@@ -1515,7 +1617,7 @@ export function AppScreens() {
                           setIsSearchingMatch(true);
                           setSearchStartTime(Date.now());
                           setShowOnlineMenu(false);
-                          const region = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                          const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
                           getSocket().emit('findMatch', { type: 'casual', boardSize, ruleSet, userId: user?.uid, region, timeLimit });
                         }}
                         className="flex items-center gap-3 py-3 px-4 rounded-xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
@@ -1561,10 +1663,19 @@ export function AppScreens() {
                       <div className="text-3xl font-black tracking-widest bg-zinc-100 py-3 rounded-xl mb-6">
                         {privateRoomCode}
                       </div>
-                      <div className="flex items-center justify-center gap-2 text-zinc-500">
+                      <div className="flex items-center justify-center gap-2 text-zinc-500 mb-6">
                         <Loader2 size={16} className="animate-spin" />
                         <span className="text-sm">Waiting for opponent...</span>
                       </div>
+                      <button
+                        onClick={() => {
+                          setPrivateRoomCode('');
+                          getSocket().emit('leaveMatch', { roomId: privateRoomCode });
+                        }}
+                        className="px-6 py-2.5 rounded-full border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 font-medium text-sm transition-all active:scale-95"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   )}
                 </motion.div>
@@ -1602,7 +1713,8 @@ export function AppScreens() {
                     onClick={() => {
                       setIsSearchingMatch(false);
                       setSearchStartTime(null);
-                      disconnectSocket();
+                      getSocket().emit('cancelSearch');
+                      setShowOnlineMenu(true);
                     }}
                     className="px-6 py-2.5 rounded-full border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 font-medium text-sm transition-all active:scale-95"
                   >
@@ -1754,7 +1866,31 @@ export function AppScreens() {
                     winningLine={winningLine}
                     lastMove={lastMove}
                     skin={currentSkin}
+                    threats={threats}
                   />
+
+                  <AnimatePresence>
+                    {threats.length > 0 && !winner && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 bg-white p-4 md:p-6 rounded-3xl shadow-2xl border border-red-100 w-[90%] max-w-md z-10"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="bg-red-100 p-3 rounded-full text-red-600 shrink-0">
+                            <ShieldCheck size={24} />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-bold text-lg mb-1 text-red-600">Threat Detected!</h3>
+                            <p className="text-zinc-600 text-sm mb-4 leading-relaxed">
+                              Your opponent has {threats.length} potential winning {threats.length === 1 ? 'line' : 'lines'} (fours or open threes). Block them immediately!
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Chat Panel Overlay */}
                   <AnimatePresence>
@@ -1921,6 +2057,15 @@ export function AppScreens() {
                     Undo
                   </button>
                 )}
+                {(!winner && gameMode !== 'online' && !(gameMode === 'pve' && ((startingPlayer === 'human' && currentPlayer === 'white') || (startingPlayer === 'ai' && currentPlayer === 'black')))) && (
+                  <button 
+                    onClick={() => setShowForfeitConfirm(true)} 
+                    className="px-4 py-2 bg-rose-100 text-rose-600 rounded-full font-semibold hover:bg-rose-200 transition-colors text-sm flex items-center gap-2"
+                    title="Forfeit Match"
+                  >
+                    Forfeit
+                  </button>
+                )}
                 {gameMode !== 'online' && (
                   <button 
                     onClick={() => setShowNewGameModal(true)} 
@@ -1960,7 +2105,31 @@ export function AppScreens() {
                 lastMove={lastMove}
                 coachMove={coachAdvice ? { row: coachAdvice.row, col: coachAdvice.col } : null}
                 skin={currentSkin}
+                threats={threats}
               />
+
+              <AnimatePresence>
+                {threats.length > 0 && !winner && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 bg-white p-4 md:p-6 rounded-3xl shadow-2xl border border-red-100 w-[90%] max-w-md z-10"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="bg-red-100 p-3 rounded-full text-red-600 shrink-0">
+                        <ShieldCheck size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg mb-1 text-red-600">Threat Detected!</h3>
+                        <p className="text-zinc-600 text-sm mb-4 leading-relaxed">
+                          Your opponent has {threats.length} potential winning {threats.length === 1 ? 'line' : 'lines'} (fours or open threes). Block them immediately!
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <AnimatePresence>
                 {coachAdvice && !winner && (
@@ -2015,7 +2184,7 @@ export function AppScreens() {
                       {winner === 'draw' ? 'Draw!' : `${winner === 'black' ? 'Black' : 'White'} Wins!`}
                     </h2>
                     <p className="text-zinc-500 mb-2">
-                      {hasForfeited ? 'You forfeited the match.' : (endReason === 'timeout' ? (winner === onlinePlayerColor ? 'Opponent timed out.' : 'You timed out.') : (onlineOpponentLeft ? 'Opponent left the match.' : 'Great game played by both sides.'))}
+                      {hasForfeited ? 'You forfeited the match.' : (endReason === 'opponent_forfeited' ? 'Opponent forfeited the match.' : (endReason === 'timeout' ? (winner === onlinePlayerColor ? 'Opponent timed out.' : 'You timed out.') : (onlineOpponentLeft ? 'Opponent left the match.' : 'Great game played by both sides.')))}
                     </p>
                     {eloChange !== null && (
                       <div className="mb-6 flex items-center justify-center gap-2">
@@ -2859,7 +3028,7 @@ export function AppScreens() {
                       <span className="font-medium">Board & Stone Skin</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
-                      {[...SKINS, ...(userProfile?.customSkins || [])].map(skin => (
+                      {allSkins.map(skin => (
                         <button
                           key={skin.id + (skin.isCustom ? `_${skin.name}` : '')}
                           onClick={() => setSelectedSkinId(skin.id)}
@@ -3090,22 +3259,31 @@ export function AppScreens() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {userProfile?.customSkins.map((skin, idx) => (
-                    <div key={idx} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center gap-4">
-                      <div 
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center gap-1"
-                        style={{ backgroundColor: skin.boardColor }}
+                  {allCustomSkins.map((skin, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center justify-between gap-4 group">
+                      <div className="flex items-center gap-4">
+                        <div 
+                          className="w-16 h-16 rounded-2xl flex items-center justify-center gap-1"
+                          style={{ backgroundColor: skin.boardColor }}
+                        >
+                          <div className={`w-3 h-3 rounded-full ${skin.blackStone}`} />
+                          <div className={`w-3 h-3 rounded-full ${skin.whiteStone}`} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-zinc-900">{skin.name}</h4>
+                          <p className="text-xs text-zinc-500">Custom Design</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteCustomSkin(skin.id)}
+                        className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete skin"
                       >
-                        <div className={`w-3 h-3 rounded-full ${skin.blackStone}`} />
-                        <div className={`w-3 h-3 rounded-full ${skin.whiteStone}`} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-zinc-900">{skin.name}</h4>
-                        <p className="text-xs text-zinc-500">Custom Design</p>
-                      </div>
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   ))}
-                  {userProfile?.customSkins.length === 0 && (
+                  {allCustomSkins.length === 0 && (
                     <div className="col-span-full py-12 text-center bg-zinc-100/50 rounded-3xl border-2 border-dashed border-zinc-200">
                       <p className="text-zinc-400 font-bold text-sm uppercase tracking-widest">No custom skins yet</p>
                     </div>
@@ -3195,122 +3373,10 @@ export function AppScreens() {
               )}
 
               {isCreatingSkin && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
-                >
-                  <motion.div 
-                    initial={{ scale: 0.9, y: 20 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 20 }}
-                    className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
-                  >
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-2xl font-black tracking-tighter uppercase">Design Skin</h3>
-                      <button onClick={() => setIsCreatingSkin(false)} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
-                        <X size={24} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Skin Name</label>
-                        <input 
-                          type="text" 
-                          value={newSkinName}
-                          onChange={(e) => setNewSkinName(e.target.value)}
-                          placeholder="e.g. Midnight Forest"
-                          className="w-full bg-zinc-100 border-none rounded-2xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Board Color</label>
-                          <input 
-                            type="color" 
-                            value={newSkinBoardColor}
-                            onChange={(e) => setNewSkinBoardColor(e.target.value)}
-                            className="w-full h-12 bg-zinc-100 border-none rounded-xl cursor-pointer"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Line Color</label>
-                          <input 
-                            type="color" 
-                            value={newSkinLineColor}
-                            onChange={(e) => setNewSkinLineColor(e.target.value)}
-                            className="w-full h-12 bg-zinc-100 border-none rounded-xl cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Black Stone Style</label>
-                          <select 
-                            value={newSkinBlackStone}
-                            onChange={(e) => setNewSkinBlackStone(e.target.value)}
-                            className="w-full bg-zinc-100 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                          >
-                            <option value="bg-zinc-900">Classic Black</option>
-                            <option value="bg-gradient-to-br from-gray-700 to-black">Obsidian</option>
-                            <option value="bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.5)]">Neon Purple</option>
-                            <option value="bg-gradient-to-br from-stone-800 to-stone-950">Dark Wood</option>
-                            <option value="bg-black/80 backdrop-blur-sm border border-white/20">Dark Glass</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">White Stone Style</label>
-                          <select 
-                            value={newSkinWhiteStone}
-                            onChange={(e) => setNewSkinWhiteStone(e.target.value)}
-                            className="w-full bg-zinc-100 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                          >
-                            <option value="bg-white border-2 border-zinc-200">Classic White</option>
-                            <option value="bg-gradient-to-br from-gray-100 to-gray-300 border border-gray-400">Marble</option>
-                            <option value="bg-gradient-to-br from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]">Neon Cyan</option>
-                            <option value="bg-gradient-to-br from-stone-200 to-stone-400">Light Wood</option>
-                            <option value="bg-white/80 backdrop-blur-sm border border-white/40">Light Glass</option>
-                          </select>
-                        </div>
-                      </div>
-                      
-                      {/* Live Preview */}
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Live Preview</label>
-                        <div className="p-6 bg-zinc-50 rounded-3xl border border-zinc-100 flex items-center justify-center">
-                          <div 
-                            className="w-48 h-48 rounded-xl relative shadow-inner overflow-hidden"
-                            style={{ backgroundColor: newSkinBoardColor }}
-                          >
-                            {/* Grid lines */}
-                            <div className="absolute inset-0 flex flex-col justify-evenly px-4">
-                              {[1,2,3,4,5].map(i => <div key={`h-${i}`} className="w-full h-[2px] rounded-full" style={{ backgroundColor: newSkinLineColor }} />)}
-                            </div>
-                            <div className="absolute inset-0 flex justify-evenly py-4">
-                              {[1,2,3,4,5].map(i => <div key={`v-${i}`} className="h-full w-[2px] rounded-full" style={{ backgroundColor: newSkinLineColor }} />)}
-                            </div>
-                            
-                            {/* Stones */}
-                            <div className="absolute inset-0 flex items-center justify-center gap-4">
-                              <div className={`w-8 h-8 rounded-full shadow-lg ${newSkinBlackStone}`} />
-                              <div className={`w-8 h-8 rounded-full shadow-lg ${newSkinWhiteStone}`} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={handleCreateCustomSkin}
-                        className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/20"
-                      >
-                        Save Skin Design
-                      </button>
-                    </div>
-                  </motion.div>
-                </motion.div>
+                <CustomSkinDesigner 
+                  onClose={() => setIsCreatingSkin(false)} 
+                  onSave={handleCreateCustomSkin} 
+                />
               )}
             </AnimatePresence>
           </motion.div>
