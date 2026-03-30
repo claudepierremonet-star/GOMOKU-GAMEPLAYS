@@ -1,5 +1,5 @@
 {
   "name": "GOMOKU GAMEPLAYS",
   "description": "GOMOKU GAMEPLAYS, focused on high-level AI gameplay and professional RGOMOKU GAMEPLAYS rules. The app must embody: - Minimalist, human-centered design - Calm, elegant, distraction-free interface - Deep strategic gameplay experience",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["geolocation"]
 }

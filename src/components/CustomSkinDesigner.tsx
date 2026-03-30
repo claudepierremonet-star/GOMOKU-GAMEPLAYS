@@ -11,9 +11,9 @@ interface CustomSkinDesignerProps {
 export function CustomSkinDesigner({ onClose, onSave }: CustomSkinDesignerProps) {
   const [newSkinName, setNewSkinName] = useState('');
   const [newSkinBoardColor, setNewSkinBoardColor] = useState('#e6c280');
-  const [newSkinLineColor, setNewSkinLineColor] = useState('rgba(0,0,0,0.4)');
-  const [newSkinBlackStone, setNewSkinBlackStone] = useState('bg-zinc-900');
-  const [newSkinWhiteStone, setNewSkinWhiteStone] = useState('bg-white border-2 border-zinc-200');
+  const [newSkinLineColor, setNewSkinLineColor] = useState('#000000');
+  const [newSkinBlackStone, setNewSkinBlackStone] = useState('#000000');
+  const [newSkinWhiteStone, setNewSkinWhiteStone] = useState('#ffffff');
 
   const handleSave = () => {
     if (!newSkinName.trim()) return;
@@ -86,32 +86,22 @@ export function CustomSkinDesigner({ onClose, onSave }: CustomSkinDesignerProps)
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Black Stone Style</label>
-              <select 
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">Black Stone Color</label>
+              <input 
+                type="color" 
                 value={newSkinBlackStone}
                 onChange={(e) => setNewSkinBlackStone(e.target.value)}
-                className="w-full bg-zinc-100 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-              >
-                <option value="bg-zinc-900">Classic Black</option>
-                <option value="bg-gradient-to-br from-gray-700 to-black">Obsidian</option>
-                <option value="bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.5)]">Neon Purple</option>
-                <option value="bg-gradient-to-br from-stone-800 to-stone-950">Dark Wood</option>
-                <option value="bg-black/80 backdrop-blur-sm border border-white/20">Dark Glass</option>
-              </select>
+                className="w-full h-12 bg-zinc-100 border-none rounded-xl cursor-pointer"
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">White Stone Style</label>
-              <select 
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">White Stone Color</label>
+              <input 
+                type="color" 
                 value={newSkinWhiteStone}
                 onChange={(e) => setNewSkinWhiteStone(e.target.value)}
-                className="w-full bg-zinc-100 border-none rounded-xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-              >
-                <option value="bg-white border-2 border-zinc-200">Classic White</option>
-                <option value="bg-gradient-to-br from-gray-100 to-gray-300 border border-gray-400">Marble</option>
-                <option value="bg-gradient-to-br from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]">Neon Cyan</option>
-                <option value="bg-gradient-to-br from-stone-200 to-stone-400">Light Wood</option>
-                <option value="bg-white/80 backdrop-blur-sm border border-white/40">Light Glass</option>
-              </select>
+                className="w-full h-12 bg-zinc-100 border-none rounded-xl cursor-pointer"
+              />
             </div>
           </div>
           
@@ -133,8 +123,8 @@ export function CustomSkinDesigner({ onClose, onSave }: CustomSkinDesignerProps)
                 
                 {/* Stones */}
                 <div className="absolute inset-0 flex items-center justify-center gap-4">
-                  <div className={`w-8 h-8 rounded-full shadow-lg ${newSkinBlackStone}`} />
-                  <div className={`w-8 h-8 rounded-full shadow-lg ${newSkinWhiteStone}`} />
+                  <div className="w-8 h-8 rounded-full shadow-lg" style={{ backgroundColor: newSkinBlackStone }} />
+                  <div className="w-8 h-8 rounded-full shadow-lg" style={{ backgroundColor: newSkinWhiteStone }} />
                 </div>
               </div>
             </div>

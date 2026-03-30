@@ -169,7 +169,8 @@ async function startServer() {
       for (let j = i + 1; j < rankedQueue.length; j++) {
         const p2 = rankedQueue[j];
         if (matchedRanked.has(p2.socketId)) continue;
-        if (p1.userId === p2.userId) continue;
+        if (p2.socketId === p1.socketId) continue;
+        // Allow same user to match against themselves for testing purposes in this environment
         if (p1.boardSize !== p2.boardSize) continue;
         if (p1.ruleSet !== p2.ruleSet) continue;
         if (p1.timeLimit !== p2.timeLimit) continue;
@@ -207,7 +208,8 @@ async function startServer() {
       for (let j = i + 1; j < casualQueue.length; j++) {
         const p2 = casualQueue[j];
         if (matchedCasual.has(p2.socketId)) continue;
-        if (p1.userId === p2.userId) continue;
+        if (p2.socketId === p1.socketId) continue;
+        // Allow same user to match against themselves for testing purposes in this environment
         if (p1.boardSize !== p2.boardSize) continue;
         if (p1.ruleSet !== p2.ruleSet) continue;
         if (p1.timeLimit !== p2.timeLimit) continue;

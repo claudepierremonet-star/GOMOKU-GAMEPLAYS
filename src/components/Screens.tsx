@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Settings, Trophy, User, ChevronLeft, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2 } from 'lucide-react';
+import { Play, Pause, Settings, Trophy, User, ChevronLeft, ChevronRight, SkipBack, SkipForward, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2, MapPin, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GomokuBoard } from './GomokuBoard';
 import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull, Threat, findThreats } from '../game/engine';
@@ -36,7 +36,7 @@ const AMBIENT_COLORS = [
   { name: 'Orange Fluo', value: '#ff6600' },
 ];
 
-type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial' | 'support' | 'privacy';
+type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial' | 'support' | 'privacy' | 'online';
 type GameMode = 'pvp' | 'pve' | 'online';
 type BoardSize = 15 | 19;
 type RuleSet = 'casual' | 'renju';
@@ -95,7 +95,6 @@ export function AppScreens() {
     return (saved as Difficulty) || 'Intermediate';
   });
   const [showDifficultySelect, setShowDifficultySelect] = useState(false);
-  const [showOnlineMenu, setShowOnlineMenu] = useState(false);
   const [isSearchingMatch, setIsSearchingMatch] = useState(false);
   const [searchStartTime, setSearchStartTime] = useState<number | null>(null);
   const [searchTimeElapsed, setSearchTimeElapsed] = useState(0);
@@ -113,6 +112,8 @@ export function AppScreens() {
   const [onlineOpponentLeft, setOnlineOpponentLeft] = useState(false);
   const [endReason, setEndReason] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string>('auto');
+  const [locationName, setLocationName] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [playerElo, setPlayerEloState] = useState<number>(1200);
   const playerEloRef = useRef<number>(1200);
   const setPlayerElo = (elo: number) => {
@@ -128,6 +129,7 @@ export function AppScreens() {
   };
   const [opponentUserId, setOpponentUserId] = useState<string | null>(null);
   const [opponentAvatarUrl, setOpponentAvatarUrl] = useState<string | null>(null);
+  const [opponentName, setOpponentName] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [eloChange, setEloChange] = useState<number | null>(null);
@@ -137,6 +139,7 @@ export function AppScreens() {
   const [replayMatch, setReplayMatch] = useState<MatchRecord | null>(null);
   const [replayMoveIndex, setReplayMoveIndex] = useState<number>(0);
   const [replayBoard, setReplayBoard] = useState<BoardState>([]);
+  const [isPlayingReplay, setIsPlayingReplay] = useState<boolean>(false);
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
 
   // Settings
@@ -179,9 +182,9 @@ export function AppScreens() {
   });
 
   const allCustomSkins = userProfile?.customSkins || localCustomSkins;
-  const allSkins = [...SKINS, ...allCustomSkins];
-  const currentSkin = allSkins.find(s => s.id === selectedSkinId) || SKINS[0];
-  const currentCharacter = CHARACTERS.find(c => c.id === selectedCharacterId) || CHARACTERS[0];
+  const allSkins = useMemo(() => [...SKINS, ...allCustomSkins], [allCustomSkins]);
+  const currentSkin = useMemo(() => allSkins.find(s => s.id === selectedSkinId) || SKINS[0], [allSkins, selectedSkinId]);
+  const currentCharacter = useMemo(() => CHARACTERS.find(c => c.id === selectedCharacterId) || CHARACTERS[0], [selectedCharacterId]);
 
   const soundEnabledRef = useRef<boolean>(true);
   useEffect(() => {
@@ -257,15 +260,19 @@ export function AppScreens() {
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
             setOpponentAvatarUrl(userDoc.data().photoURL || null);
+            setOpponentName(userDoc.data().displayName || null);
           } else {
             setOpponentAvatarUrl(null);
+            setOpponentName(null);
           }
         } catch (error) {
           console.error('Error fetching opponent avatar:', error);
           setOpponentAvatarUrl(null);
+          setOpponentName(null);
         }
       } else {
         setOpponentAvatarUrl(null);
+        setOpponentName(null);
       }
     };
     
@@ -386,6 +393,26 @@ export function AppScreens() {
     }
   }, [chatMessages]);
   const [ambientColor, setAmbientColor] = useState<string>('#000000');
+  const [isAmbientBtnCollapsed, setIsAmbientBtnCollapsed] = useState(false);
+  const ambientBtnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resetAmbientBtnTimeout = useCallback(() => {
+    setIsAmbientBtnCollapsed(false);
+    if (ambientBtnTimeoutRef.current) {
+      clearTimeout(ambientBtnTimeoutRef.current);
+    }
+    ambientBtnTimeoutRef.current = setTimeout(() => {
+      setIsAmbientBtnCollapsed(true);
+    }, 5000);
+  }, []);
+
+  useEffect(() => {
+    resetAmbientBtnTimeout();
+    return () => {
+      if (ambientBtnTimeoutRef.current) clearTimeout(ambientBtnTimeoutRef.current);
+    };
+  }, [resetAmbientBtnTimeout]);
+
   const [showNewGameModal, setShowNewGameModal] = useState(false);
   const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
@@ -666,7 +693,14 @@ export function AppScreens() {
   }, [currentScreen]);
 
   const handleCreateCustomCharacter = async () => {
-    if (!user || !newCharName || !newCharAvatar) return;
+    if (!user) {
+      toast.error('You must be logged in to create a character');
+      return;
+    }
+    if (!newCharName || !newCharAvatar) {
+      toast.error('Please enter a name and avatar URL');
+      return;
+    }
     
     const newChar: Character = {
       id: `custom_${Date.now()}`,
@@ -691,8 +725,10 @@ export function AppScreens() {
       setNewCharAvatar('');
       setNewCharBio('');
       setIsCreatingChar(false);
+      toast.success('Character created successfully!');
     } catch (error) {
       console.error("Error creating custom character:", error);
+      toast.error('Failed to create character');
     }
   };
 
@@ -968,7 +1004,7 @@ export function AppScreens() {
       toast.error(data.message);
       setIsSearchingMatch(false);
       setSearchStartTime(null);
-      setShowOnlineMenu(true);
+      setCurrentScreen('online');
     };
 
     const onConnect = () => setIsConnected(true);
@@ -1328,12 +1364,67 @@ export function AppScreens() {
     setCurrentScreen('game');
   };
 
+  const handleGeolocate = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
+          const data = await response.json();
+          
+          if (data && data.address) {
+            const city = data.address.city || data.address.town || data.address.village || data.address.county;
+            const country = data.address.country;
+            const locationStr = [city, country].filter(Boolean).join(', ');
+            setLocationName(locationStr);
+            toast.success(`Location found: ${locationStr}`);
+            
+            // Try to map location to a region or keep auto
+            setSelectedRegion('auto');
+          } else {
+            toast.error('Could not determine location name');
+          }
+        } catch (error) {
+          console.error('Error fetching location name:', error);
+          toast.error('Failed to get location details');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        toast.error('Failed to get your location. Please check permissions.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const startReplay = (match: MatchRecord) => {
     setReplayMatch(match);
     setReplayMoveIndex(0);
     setReplayBoard(createEmptyBoard(match.boardSize));
+    setIsPlayingReplay(false);
     setCurrentScreen('replay');
   };
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isPlayingReplay && replayMatch && replayMoveIndex < replayMatch.moves.length) {
+      timer = setTimeout(() => {
+        nextReplayMove();
+      }, 1000); // 1 second per move
+    } else if (replayMatch && replayMoveIndex >= replayMatch.moves.length) {
+      setIsPlayingReplay(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isPlayingReplay, replayMoveIndex, replayMatch]);
 
   const nextReplayMove = () => {
     if (!replayMatch || replayMoveIndex >= replayMatch.moves.length) return;
@@ -1445,9 +1536,10 @@ export function AppScreens() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute inset-0 flex flex-col items-center justify-center p-6 overflow-y-auto custom-scrollbar"
+            className="absolute inset-0 flex flex-col items-center p-6 overflow-y-auto custom-scrollbar"
           >
-            <div className="text-center mb-12 shrink-0">
+            <div className="my-auto flex flex-col items-center w-full py-8">
+              <div className="text-center mb-12 shrink-0">
               <h1 className="text-6xl font-black tracking-tighter mb-4">GOMOKU</h1>
               <p className="text-zinc-500 font-medium tracking-wide uppercase text-sm mb-8">The Classic Strategy Game</p>
               
@@ -1472,7 +1564,7 @@ export function AppScreens() {
             </div>
 
             <div className="flex flex-col gap-4 w-full max-w-xs">
-              {!showDifficultySelect && !showOnlineMenu && !isSearchingMatch ? (
+              {!showDifficultySelect ? (
                 <>
                   <button
                     onClick={() => setCurrentScreen('music')}
@@ -1490,7 +1582,7 @@ export function AppScreens() {
                   <button
                     onClick={() => {
                       connectSocket();
-                      setShowOnlineMenu(true);
+                      setCurrentScreen('online');
                     }}
                     className="flex items-center justify-center gap-3 bg-emerald-600 text-white py-4 px-6 rounded-2xl font-semibold hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20"
                   >
@@ -1565,162 +1657,6 @@ export function AppScreens() {
                     Confidentialité
                   </button>
                 </>
-              ) : showOnlineMenu ? (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col gap-3 bg-white p-4 rounded-3xl border border-zinc-200 shadow-xl"
-                >
-                  <div className="flex items-center justify-between mb-2 px-2">
-                    <h3 className="font-bold text-zinc-900">Online Multiplayer</h3>
-                    <button onClick={() => {
-                      setShowOnlineMenu(false);
-                      setPrivateRoomCode('');
-                    }} className="p-1 hover:bg-zinc-100 rounded-full">
-                      <ChevronLeft size={20} />
-                    </button>
-                  </div>
-
-                  <div className="px-2 mb-4">
-                    <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Server Region</label>
-                    <select
-                      value={selectedRegion}
-                      onChange={(e) => setSelectedRegion(e.target.value)}
-                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-sm text-zinc-700 outline-none focus:border-zinc-400"
-                    >
-                      <option value="auto">Auto (Best Ping)</option>
-                      <option value="America/New_York">North America</option>
-                      <option value="Europe/Paris">Europe</option>
-                      <option value="Asia/Tokyo">Asia</option>
-                      <option value="America/Sao_Paulo">South America</option>
-                      <option value="Australia/Sydney">Oceania</option>
-                    </select>
-                  </div>
-                  
-                  {!privateRoomCode ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          setIsSearchingMatch(true);
-                          setSearchStartTime(Date.now());
-                          setShowOnlineMenu(false);
-                          const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
-                          getSocket().emit('findMatch', { type: 'ranked', boardSize, ruleSet, elo: playerElo, userId: user?.uid, region, timeLimit });
-                        }}
-                        className="flex items-center gap-3 py-3 px-4 rounded-xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
-                      >
-                        <Trophy size={18} className="text-amber-500" />
-                        Ranked Match
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsSearchingMatch(true);
-                          setSearchStartTime(Date.now());
-                          setShowOnlineMenu(false);
-                          const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
-                          getSocket().emit('findMatch', { type: 'casual', boardSize, ruleSet, userId: user?.uid, region, timeLimit });
-                        }}
-                        className="flex items-center gap-3 py-3 px-4 rounded-xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
-                      >
-                        <Globe size={18} className="text-emerald-500" />
-                        Casual Match
-                      </button>
-                      <div className="h-px bg-zinc-200 my-2" />
-                      <button
-                        onClick={() => {
-                          getSocket().emit('createPrivateRoom', { boardSize, ruleSet, userId: user?.uid, timeLimit });
-                        }}
-                        className="flex items-center gap-3 py-3 px-4 rounded-xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
-                      >
-                        <Users size={18} className="text-blue-500" />
-                        Create Private Room
-                      </button>
-                      <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          placeholder="Room Code" 
-                          className="flex-1 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-sm uppercase outline-none focus:border-zinc-400"
-                          value={joinRoomInput}
-                          onChange={(e) => setJoinRoomInput(e.target.value.toUpperCase())}
-                          maxLength={6}
-                        />
-                        <button
-                          onClick={() => {
-                            if (joinRoomInput) {
-                              getSocket().emit('joinPrivateRoom', { roomId: joinRoomInput, userId: user?.uid });
-                            }
-                          }}
-                          className="bg-zinc-900 text-white px-4 rounded-xl font-semibold text-sm hover:bg-zinc-800 disabled:opacity-50"
-                          disabled={!joinRoomInput}
-                        >
-                          Join
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-6">
-                      <p className="text-zinc-500 text-sm mb-2">Share this code with your friend:</p>
-                      <div className="text-3xl font-black tracking-widest bg-zinc-100 py-3 rounded-xl mb-6">
-                        {privateRoomCode}
-                      </div>
-                      <div className="flex items-center justify-center gap-2 text-zinc-500 mb-6">
-                        <Loader2 size={16} className="animate-spin" />
-                        <span className="text-sm">Waiting for opponent...</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setPrivateRoomCode('');
-                          getSocket().emit('leaveMatch', { roomId: privateRoomCode });
-                        }}
-                        className="px-6 py-2.5 rounded-full border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 font-medium text-sm transition-all active:scale-95"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </motion.div>
-              ) : isSearchingMatch ? (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col items-center justify-center gap-8 w-full max-w-md relative py-12"
-                >
-                  {/* Soft animated board grid background */}
-                  <div className="absolute inset-0 -z-10 overflow-hidden rounded-3xl opacity-20 mask-radial">
-                    <div className="w-[200%] h-[200%] -translate-x-1/4 -translate-y-1/4" style={{
-                      backgroundImage: 'linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)',
-                      backgroundSize: '40px 40px',
-                      animation: 'pan-grid 20s linear infinite'
-                    }} />
-                  </div>
-
-                  <div className="relative flex items-center justify-center w-24 h-24">
-                    <div className="absolute inset-0 border-2 border-zinc-200 rounded-full animate-[spin_3s_linear_infinite]" />
-                    <div className="absolute inset-2 border-2 border-t-zinc-800 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-[spin_1.5s_ease-in-out_infinite]" />
-                    <div className="absolute inset-4 border-2 border-b-zinc-400 border-t-transparent border-r-transparent border-l-transparent rounded-full animate-[spin_2s_ease-in-out_infinite_reverse]" />
-                    <div className="w-3 h-3 bg-zinc-800 rounded-full animate-pulse" />
-                  </div>
-
-                  <div className="text-center space-y-2">
-                    <h3 className="font-medium text-zinc-900 text-xl tracking-tight">Finding an opponent...</h3>
-                    <p className="text-zinc-500 text-sm tracking-wide uppercase">Matching skill level</p>
-                    <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-mono text-zinc-400">
-                      <span>{Math.floor(searchTimeElapsed / 60).toString().padStart(2, '0')}:{(searchTimeElapsed % 60).toString().padStart(2, '0')}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setIsSearchingMatch(false);
-                      setSearchStartTime(null);
-                      getSocket().emit('cancelSearch');
-                      setShowOnlineMenu(true);
-                    }}
-                    className="px-6 py-2.5 rounded-full border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 font-medium text-sm transition-all active:scale-95"
-                  >
-                    Cancel
-                  </button>
-                </motion.div>
               ) : showDifficultySelect ? (
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -1753,6 +1689,7 @@ export function AppScreens() {
                 </motion.div>
               ) : null}
             </div>
+            </div>
           </motion.div>
         )}
 
@@ -1770,7 +1707,7 @@ export function AppScreens() {
                 <div className="flex items-center justify-between">
                   <div className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-300 ${currentPlayer !== onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100'}`}>
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-zinc-200 flex items-center justify-center text-xl font-bold text-zinc-500 uppercase overflow-hidden">
+                      <div className={`w-12 h-12 rounded-full bg-zinc-200 flex items-center justify-center text-xl font-bold text-zinc-500 uppercase overflow-hidden ${currentPlayer === onlinePlayerColor ? 'animate-idle-float' : ''}`}>
                         {opponentAvatarUrl ? (
                           <img src={opponentAvatarUrl} alt="Opponent" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
@@ -1783,7 +1720,7 @@ export function AppScreens() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-zinc-900">{opponentUserId ? `Player ${opponentUserId.substring(0, 4)}` : 'Opponent'}</h3>
+                        <h3 className="font-bold text-zinc-900">{opponentName || (opponentUserId ? `Player ${opponentUserId.substring(0, 4)}` : 'Opponent')}</h3>
                         {opponentElo !== null && (
                           <span className="px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-bold rounded-md">
                             {opponentElo} ELO
@@ -1920,17 +1857,34 @@ export function AppScreens() {
                             </div>
                           ) : (
                             chatMessages.map((msg) => (
-                              <div key={msg.id} className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
-                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${
-                                  msg.isMe 
-                                    ? 'bg-zinc-900 text-white rounded-tr-none' 
-                                    : 'bg-zinc-100 text-zinc-800 rounded-tl-none'
-                                }`}>
-                                  <p className="leading-relaxed">{msg.text}</p>
+                              <div key={msg.id} className={`flex gap-2 ${msg.isMe ? 'flex-row-reverse' : 'flex-row'} mb-4`}>
+                                <div className="w-8 h-8 rounded-full bg-zinc-200 flex-shrink-0 overflow-hidden flex items-center justify-center text-xs font-bold text-zinc-500 uppercase">
+                                  {msg.isMe ? (
+                                    user?.photoURL ? (
+                                      <img src={user.photoURL} alt="Me" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <img src={currentCharacter.avatar} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    )
+                                  ) : (
+                                    opponentAvatarUrl ? (
+                                      <img src={opponentAvatarUrl} alt="Opponent" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      msg.sender.substring(0, 2)
+                                    )
+                                  )}
                                 </div>
-                                <span className="text-[10px] text-zinc-400 mt-1 font-medium uppercase tracking-tighter">
-                                  {msg.isMe ? 'You' : msg.sender} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                                <div className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                                  <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${
+                                    msg.isMe 
+                                      ? 'bg-zinc-900 text-white rounded-tr-none' 
+                                      : 'bg-zinc-100 text-zinc-800 rounded-tl-none'
+                                  }`}>
+                                    <p className="leading-relaxed">{msg.text}</p>
+                                  </div>
+                                  <span className="text-[10px] text-zinc-400 mt-1 font-medium uppercase tracking-tighter">
+                                    {msg.isMe ? 'You' : msg.sender} • {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
                               </div>
                             ))
                           )}
@@ -1964,7 +1918,7 @@ export function AppScreens() {
                 <div className="flex items-center justify-between">
                   <div className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-300 ${currentPlayer === onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100'}`}>
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-xl font-bold text-white uppercase overflow-hidden">
+                      <div className={`w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-xl font-bold text-white uppercase overflow-hidden ${currentPlayer !== onlinePlayerColor ? 'animate-idle-float' : ''}`}>
                         {user?.photoURL ? (
                           <img src={user.photoURL} alt="Me" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
@@ -2006,7 +1960,7 @@ export function AppScreens() {
               <div className="flex items-center gap-4">
                 <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${currentPlayer === 'black' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60'}`}>
                   <div className="relative">
-                    <img src={gameMode === 'pve' && startingPlayer === 'ai' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="Black Player" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={gameMode === 'pve' && startingPlayer === 'ai' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="Black Player" className={`w-5 h-5 rounded-full object-cover ${currentPlayer !== 'black' ? 'animate-idle-float' : ''}`} referrerPolicy="no-referrer" />
                     <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'ai' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
                   </div>
                   {gameMode === 'pve' && startingPlayer === 'ai' ? `${CHARACTERS[1].name} (AI)` : (gameMode === 'pvp' ? 'Player 1' : (user?.displayName || currentCharacter.name))}
@@ -2018,7 +1972,7 @@ export function AppScreens() {
                 </div>
                 <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${currentPlayer === 'white' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60'}`}>
                   <div className="relative">
-                    <img src={gameMode === 'pve' && startingPlayer === 'human' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="White Player" className="w-5 h-5 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={gameMode === 'pve' && startingPlayer === 'human' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="White Player" className={`w-5 h-5 rounded-full object-cover ${currentPlayer !== 'white' ? 'animate-idle-float' : ''}`} referrerPolicy="no-referrer" />
                     <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'human' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
                   </div>
                   {gameMode === 'pve' && startingPlayer === 'human' ? `${CHARACTERS[1].name} (AI)` : (gameMode === 'pvp' ? 'Player 2' : (user?.displayName || currentCharacter.name))}
@@ -2625,18 +2579,63 @@ export function AppScreens() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={prevReplayMove}
+                  onClick={() => {
+                    setReplayMoveIndex(0);
+                    setReplayBoard(createEmptyBoard(replayMatch.boardSize));
+                    setIsPlayingReplay(false);
+                  }}
                   disabled={replayMoveIndex === 0}
                   className="p-3 bg-white rounded-xl shadow-sm hover:bg-zinc-50 disabled:opacity-30 transition-all"
+                  title="Go to start"
+                >
+                  <SkipBack size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsPlayingReplay(false);
+                    prevReplayMove();
+                  }}
+                  disabled={replayMoveIndex === 0}
+                  className="p-3 bg-white rounded-xl shadow-sm hover:bg-zinc-50 disabled:opacity-30 transition-all"
+                  title="Previous move"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
-                  onClick={nextReplayMove}
+                  onClick={() => setIsPlayingReplay(!isPlayingReplay)}
                   disabled={replayMoveIndex === replayMatch.moves.length}
                   className="p-3 bg-zinc-900 text-white rounded-xl shadow-sm hover:bg-zinc-800 disabled:opacity-30 transition-all"
+                  title={isPlayingReplay ? "Pause" : "Play"}
                 >
-                  <Play size={20} />
+                  {isPlayingReplay ? <Pause size={20} /> : <Play size={20} />}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsPlayingReplay(false);
+                    nextReplayMove();
+                  }}
+                  disabled={replayMoveIndex === replayMatch.moves.length}
+                  className="p-3 bg-white rounded-xl shadow-sm hover:bg-zinc-50 disabled:opacity-30 transition-all"
+                  title="Next move"
+                >
+                  <ChevronRight size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsPlayingReplay(false);
+                    const newBoard = createEmptyBoard(replayMatch.boardSize);
+                    for (let i = 0; i < replayMatch.moves.length; i++) {
+                      const move = replayMatch.moves[i];
+                      newBoard[move.row][move.col] = move.player;
+                    }
+                    setReplayBoard(newBoard);
+                    setReplayMoveIndex(replayMatch.moves.length);
+                  }}
+                  disabled={replayMoveIndex === replayMatch.moves.length}
+                  className="p-3 bg-white rounded-xl shadow-sm hover:bg-zinc-50 disabled:opacity-30 transition-all"
+                  title="Go to end"
+                >
+                  <SkipForward size={20} />
                 </button>
               </div>
             </header>
@@ -2645,9 +2644,13 @@ export function AppScreens() {
               <GomokuBoard
                 board={replayBoard}
                 onCellClick={() => {}}
-                winningLine={replayMoveIndex === replayMatch.moves.length ? (replayMatch.winner !== 'draw' ? replayMatch.moves.slice(-5).map(m => [m.row, m.col] as [number, number]) : null) : null}
+                winningLine={
+                  replayMoveIndex === replayMatch.moves.length && replayMatch.winner !== 'draw' && replayMatch.moves.length > 0
+                    ? checkWin(replayBoard, replayMatch.moves[replayMatch.moves.length - 1].row, replayMatch.moves[replayMatch.moves.length - 1].col, replayMatch.moves[replayMatch.moves.length - 1].player, false)
+                    : null
+                }
                 lastMove={replayMoveIndex > 0 ? replayMatch.moves[replayMoveIndex - 1] : null}
-                skin={SKINS.find(s => s.id === (replayMatch as any).selectedSkin) || SKINS[0]}
+                skin={allSkins.find(s => s.id === (replayMatch as any).selectedSkin) || SKINS[0]}
               />
 
               <div className="mt-8 w-full max-w-md bg-white p-6 rounded-3xl shadow-xl border border-zinc-100">
@@ -2661,6 +2664,7 @@ export function AppScreens() {
                   max={replayMatch.moves.length} 
                   value={replayMoveIndex}
                   onChange={(e) => {
+                    setIsPlayingReplay(false);
                     const newIndex = parseInt(e.target.value);
                     const newBoard = createEmptyBoard(replayMatch.boardSize);
                     for (let i = 0; i < newIndex; i++) {
@@ -2898,6 +2902,213 @@ export function AppScreens() {
           </motion.div>
         )}
 
+        {currentScreen === 'online' && (
+          <motion.div
+            key="online"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto custom-scrollbar pb-24"
+          >
+            <header className="flex items-center gap-4 mb-8 shrink-0">
+              <button
+                onClick={() => {
+                  setCurrentScreen('home');
+                  setPrivateRoomCode('');
+                  if (isSearchingMatch) {
+                    setIsSearchingMatch(false);
+                    setSearchStartTime(null);
+                    getSocket().emit('cancelSearch');
+                  }
+                }}
+                className="p-2 hover:bg-zinc-200 rounded-full transition-colors -ml-2"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <h2 className="text-2xl font-bold">Online Multiplayer</h2>
+            </header>
+
+            <div className="space-y-6">
+              {isSearchingMatch ? (
+                <div className="flex flex-col items-center justify-center gap-8 w-full py-12">
+                  <div className="relative flex items-center justify-center w-24 h-24">
+                    <div className="absolute inset-0 border-2 border-zinc-200 rounded-full animate-[spin_3s_linear_infinite]" />
+                    <div className="absolute inset-2 border-2 border-t-zinc-800 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-[spin_1.5s_ease-in-out_infinite]" />
+                    <div className="absolute inset-4 border-2 border-b-zinc-400 border-t-transparent border-r-transparent border-l-transparent rounded-full animate-[spin_2s_ease-in-out_infinite_reverse]" />
+                    <div className="w-3 h-3 bg-zinc-800 rounded-full animate-pulse" />
+                  </div>
+
+                  <div className="text-center space-y-2">
+                    <h3 className="font-medium text-zinc-900 text-xl tracking-tight">Finding an opponent...</h3>
+                    <p className="text-zinc-500 text-sm tracking-wide uppercase">Matching skill level</p>
+                    <div className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-mono text-zinc-400">
+                      <span>{Math.floor(searchTimeElapsed / 60).toString().padStart(2, '0')}:{(searchTimeElapsed % 60).toString().padStart(2, '0')}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsSearchingMatch(false);
+                      setSearchStartTime(null);
+                      getSocket().emit('cancelSearch');
+                    }}
+                    className="px-6 py-2.5 rounded-full border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 font-medium text-sm transition-all active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : privateRoomCode ? (
+                <div className="text-center py-12">
+                  <p className="text-zinc-500 text-sm mb-2">Share this code with your friend:</p>
+                  <div className="text-4xl font-black tracking-widest bg-zinc-100 py-6 rounded-2xl mb-8">
+                    {privateRoomCode}
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-zinc-500 mb-8">
+                    <Loader2 size={20} className="animate-spin" />
+                    <span className="text-base">Waiting for opponent...</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setPrivateRoomCode('');
+                      getSocket().emit('leaveMatch', { roomId: privateRoomCode });
+                    }}
+                    className="px-8 py-3 rounded-full border border-zinc-200 text-red-600 hover:bg-red-50 hover:border-red-200 font-medium transition-all active:scale-95"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">Matchmaking</h3>
+                    <div className="space-y-3">
+                      <button
+                        onClick={() => {
+                          setIsSearchingMatch(true);
+                          setSearchStartTime(Date.now());
+                          const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
+                          getSocket().emit('findMatch', { type: 'ranked', boardSize, ruleSet, elo: playerElo, userId: user?.uid, region, timeLimit });
+                        }}
+                        className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
+                      >
+                        <div className="p-3 bg-amber-100 rounded-xl text-amber-600">
+                          <Trophy size={24} />
+                        </div>
+                        <div>
+                          <div className="text-lg">Ranked Match</div>
+                          <div className="text-sm font-normal text-zinc-500">Play competitive matches and earn Elo</div>
+                        </div>
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setIsSearchingMatch(true);
+                          setSearchStartTime(Date.now());
+                          const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
+                          getSocket().emit('findMatch', { type: 'casual', boardSize, ruleSet, userId: user?.uid, region, timeLimit });
+                        }}
+                        className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
+                      >
+                        <div className="p-3 bg-emerald-100 rounded-xl text-emerald-600">
+                          <Globe size={24} />
+                        </div>
+                        <div>
+                          <div className="text-lg">Casual Match</div>
+                          <div className="text-sm font-normal text-zinc-500">Play for fun without affecting your rank</div>
+                        </div>
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">Private Room</h3>
+                    <div className="space-y-4">
+                      <button
+                        onClick={() => {
+                          getSocket().emit('createPrivateRoom', { boardSize, ruleSet, userId: user?.uid, timeLimit });
+                        }}
+                        className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
+                      >
+                        <div className="p-3 bg-blue-100 rounded-xl text-blue-600">
+                          <Users size={24} />
+                        </div>
+                        <div>
+                          <div className="text-lg">Create Private Room</div>
+                          <div className="text-sm font-normal text-zinc-500">Play with a friend using a room code</div>
+                        </div>
+                      </button>
+
+                      <div className="flex gap-3">
+                        <input 
+                          type="text" 
+                          placeholder="Enter Room Code" 
+                          className="flex-1 bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 text-base uppercase outline-none focus:border-zinc-400 transition-colors"
+                          value={joinRoomInput}
+                          onChange={(e) => setJoinRoomInput(e.target.value.toUpperCase())}
+                          maxLength={6}
+                        />
+                        <button
+                          onClick={() => {
+                            if (joinRoomInput) {
+                              getSocket().emit('joinPrivateRoom', { roomId: joinRoomInput, userId: user?.uid });
+                            }
+                          }}
+                          className="bg-zinc-900 text-white px-6 rounded-2xl font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+                          disabled={!joinRoomInput}
+                        >
+                          Join
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">Settings</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-zinc-700 mb-2">Server Region</label>
+                        <select
+                          value={selectedRegion}
+                          onChange={(e) => setSelectedRegion(e.target.value)}
+                          className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-base text-zinc-700 outline-none focus:border-zinc-400 transition-colors"
+                        >
+                          <option value="auto">Auto (Best Ping)</option>
+                          <option value="America/New_York">North America</option>
+                          <option value="Europe/Paris">Europe</option>
+                          <option value="Asia/Tokyo">Asia</option>
+                          <option value="America/Sao_Paulo">South America</option>
+                          <option value="Australia/Sydney">Oceania</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <button
+                          onClick={handleGeolocate}
+                          disabled={isLocating}
+                          className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white py-3 px-4 rounded-xl font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                        >
+                          {isLocating ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <MapPin size={18} />
+                          )}
+                          {isLocating ? 'Localisation...' : 'Géolocaliser'}
+                        </button>
+                        {locationName && (
+                          <p className="text-sm text-emerald-600 mt-2 text-center font-medium">
+                            <MapPin size={14} className="inline mr-1" />
+                            {locationName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {currentScreen === 'settings' && (
           <motion.div
             key="settings"
@@ -3028,26 +3239,36 @@ export function AppScreens() {
                       <span className="font-medium">Board & Stone Skin</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
-                      {allSkins.map(skin => (
-                        <button
-                          key={skin.id + (skin.isCustom ? `_${skin.name}` : '')}
-                          onClick={() => setSelectedSkinId(skin.id)}
-                          className={`flex flex-col items-start p-3 rounded-2xl border-2 transition-all ${
-                            selectedSkinId === skin.id 
-                              ? 'border-zinc-900 bg-zinc-50' 
-                              : 'border-transparent bg-zinc-100 hover:bg-zinc-200'
-                          }`}
-                        >
-                          <div 
-                            className="w-full h-12 rounded-lg mb-2 flex items-center justify-center gap-2"
-                            style={{ backgroundColor: skin.boardColor }}
+                      {allSkins.map(skin => {
+                        const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.blackStone);
+                        const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.whiteStone);
+                        return (
+                          <button
+                            key={skin.id + (skin.isCustom ? `_${skin.name}` : '')}
+                            onClick={() => setSelectedSkinId(skin.id)}
+                            className={`flex flex-col items-start p-3 rounded-2xl border-2 transition-all ${
+                              selectedSkinId === skin.id 
+                                ? 'border-zinc-900 bg-zinc-50' 
+                                : 'border-transparent bg-zinc-100 hover:bg-zinc-200'
+                            }`}
                           >
-                            <div className={`w-4 h-4 rounded-full ${skin.blackStone}`} />
-                            <div className={`w-4 h-4 rounded-full ${skin.whiteStone}`} />
-                          </div>
-                          <span className="text-xs font-bold">{skin.name}</span>
-                        </button>
-                      ))}
+                            <div 
+                              className="w-full h-12 rounded-lg mb-2 flex items-center justify-center gap-2"
+                              style={{ backgroundColor: skin.boardColor }}
+                            >
+                              <div 
+                                className={`w-4 h-4 rounded-full ${!isBlackHex ? skin.blackStone : ''}`} 
+                                style={isBlackHex ? { backgroundColor: skin.blackStone } : {}}
+                              />
+                              <div 
+                                className={`w-4 h-4 rounded-full ${!isWhiteHex ? skin.whiteStone : ''}`} 
+                                style={isWhiteHex ? { backgroundColor: skin.whiteStone } : {}}
+                              />
+                            </div>
+                            <span className="text-xs font-bold">{skin.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -3219,13 +3440,15 @@ export function AppScreens() {
               <section className="mb-12">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-black tracking-tighter uppercase">Custom Characters</h3>
-                  <button 
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setIsCreatingChar(true)}
-                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-colors"
+                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-md hover:shadow-lg"
                   >
-                    <Play size={14} className="rotate-90" />
+                    <Plus size={14} />
                     Create New
-                  </button>
+                  </motion.button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3249,25 +3472,36 @@ export function AppScreens() {
               <section className="mb-12">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-black tracking-tighter uppercase">Custom Skins</h3>
-                  <button 
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setIsCreatingSkin(true)}
-                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-colors"
+                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-md hover:shadow-lg"
                   >
-                    <Palette size={14} />
+                    <Plus size={14} />
                     Design Skin
-                  </button>
+                  </motion.button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {allCustomSkins.map((skin, idx) => (
+                  {allCustomSkins.map((skin, idx) => {
+                    const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.blackStone);
+                    const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.whiteStone);
+                    return (
                     <div key={idx} className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center justify-between gap-4 group">
                       <div className="flex items-center gap-4">
                         <div 
                           className="w-16 h-16 rounded-2xl flex items-center justify-center gap-1"
                           style={{ backgroundColor: skin.boardColor }}
                         >
-                          <div className={`w-3 h-3 rounded-full ${skin.blackStone}`} />
-                          <div className={`w-3 h-3 rounded-full ${skin.whiteStone}`} />
+                          <div 
+                            className={`w-3 h-3 rounded-full ${!isBlackHex ? skin.blackStone : ''}`} 
+                            style={isBlackHex ? { backgroundColor: skin.blackStone } : {}}
+                          />
+                          <div 
+                            className={`w-3 h-3 rounded-full ${!isWhiteHex ? skin.whiteStone : ''}`} 
+                            style={isWhiteHex ? { backgroundColor: skin.whiteStone } : {}}
+                          />
                         </div>
                         <div>
                           <h4 className="font-bold text-zinc-900">{skin.name}</h4>
@@ -3282,7 +3516,7 @@ export function AppScreens() {
                         <Trash2 size={18} />
                       </button>
                     </div>
-                  ))}
+                  )})}
                   {allCustomSkins.length === 0 && (
                     <div className="col-span-full py-12 text-center bg-zinc-100/50 rounded-3xl border-2 border-dashed border-zinc-200">
                       <p className="text-zinc-400 font-bold text-sm uppercase tracking-widest">No custom skins yet</p>
@@ -3361,12 +3595,19 @@ export function AppScreens() {
                           className="w-full bg-zinc-100 border-none rounded-2xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900 h-24 resize-none"
                         />
                       </div>
-                      <button 
+                      <motion.button 
+                        whileHover={newCharName && newCharAvatar ? { scale: 1.02 } : {}}
+                        whileTap={newCharName && newCharAvatar ? { scale: 0.98 } : {}}
                         onClick={handleCreateCustomCharacter}
-                        className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/20"
+                        disabled={!newCharName || !newCharAvatar}
+                        className={`w-full py-4 rounded-2xl font-bold transition-all shadow-lg ${
+                          newCharName && newCharAvatar 
+                            ? 'bg-zinc-900 text-white hover:bg-zinc-800 shadow-zinc-900/20' 
+                            : 'bg-zinc-200 text-zinc-400 cursor-not-allowed shadow-none'
+                        }`}
                       >
                         Create Character
-                      </button>
+                      </motion.button>
                     </div>
                   </motion.div>
                 </motion.div>
@@ -3384,16 +3625,43 @@ export function AppScreens() {
       </AnimatePresence>
 
       {/* Ambient Color Button */}
-      <button
-        onClick={nextAmbientColor}
-        className="absolute bottom-6 right-6 p-3 bg-white rounded-full shadow-xl border border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:scale-110 transition-all z-50 flex items-center justify-center"
+      <motion.button
+        drag
+        dragConstraints={{ left: -window.innerWidth + 50, right: 0, top: -window.innerHeight + 50, bottom: 0 }}
+        dragElastic={0.1}
+        onDragStart={() => {
+          if (ambientBtnTimeoutRef.current) clearTimeout(ambientBtnTimeoutRef.current);
+          setIsAmbientBtnCollapsed(false);
+        }}
+        onDragEnd={() => {
+          resetAmbientBtnTimeout();
+        }}
+        onPointerDown={(e) => {
+          // Prevent default to avoid issues with touch events on mobile
+          // e.preventDefault();
+        }}
+        onPointerUp={(e) => {
+          if (isAmbientBtnCollapsed) {
+            resetAmbientBtnTimeout();
+          } else {
+            nextAmbientColor();
+            resetAmbientBtnTimeout();
+          }
+        }}
+        animate={{
+          width: isAmbientBtnCollapsed ? 8 : 48,
+          height: isAmbientBtnCollapsed ? 48 : 48,
+          borderRadius: isAmbientBtnCollapsed ? 4 : 24,
+          opacity: isAmbientBtnCollapsed ? 0.5 : 1,
+        }}
+        className="absolute bottom-6 right-6 bg-white shadow-xl border border-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors z-50 flex items-center justify-center overflow-hidden touch-none"
         title="Changer la couleur d'ambiance"
         style={{
-          boxShadow: ambientColor !== 'transparent' ? `0 10px 25px -5px ${ambientColor}80` : undefined
+          boxShadow: ambientColor !== 'transparent' && !isAmbientBtnCollapsed ? `0 10px 25px -5px ${ambientColor}80` : undefined
         }}
       >
-        <Palette size={24} color={ambientColor !== 'transparent' ? ambientColor : 'currentColor'} />
-      </button>
+        {!isAmbientBtnCollapsed && <Palette size={24} color={ambientColor !== 'transparent' ? ambientColor : 'currentColor'} />}
+      </motion.button>
 
       {/* Background Music */}
       <audio 

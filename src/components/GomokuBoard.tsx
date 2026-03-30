@@ -1,7 +1,93 @@
-import React from 'react';
+import React, { memo, useMemo, useRef, useEffect, useCallback } from 'react';
 import { BoardState, Player, Threat } from '../game/engine';
 import { motion } from 'motion/react';
 import { Skin } from '../types';
+
+interface GomokuCellProps {
+  row: number;
+  col: number;
+  cell: Player | null;
+  isWinningCell: boolean;
+  isLastMove: boolean;
+  isCoachMove: boolean;
+  isThreatTarget: boolean;
+  isThreatStone: boolean;
+  skin: Skin;
+  onCellClick: (row: number, col: number) => void;
+}
+
+const isHexColor = (str: string) => /^#([0-9A-F]{3}){1,2}$/i.test(str);
+
+const GomokuCell = memo(({
+  row,
+  col,
+  cell,
+  isWinningCell,
+  isLastMove,
+  isCoachMove,
+  isThreatTarget,
+  isThreatStone,
+  skin,
+  onCellClick
+}: GomokuCellProps) => {
+  const stoneStyle = cell === 'black' ? skin.blackStone : skin.whiteStone;
+  const isHex = stoneStyle ? isHexColor(stoneStyle) : false;
+
+  return (
+    <div
+      className="relative flex items-center justify-center cursor-pointer hover:bg-black/5 rounded-full group"
+      onClick={() => onCellClick(row, col)}
+    >
+      {/* Hover indicator */}
+      {!cell && !isCoachMove && !isThreatTarget && (
+        <div className="absolute w-3/4 h-3/4 rounded-full opacity-0 group-hover:opacity-30 bg-black/20 transition-opacity" />
+      )}
+
+      {/* Threat Target Indicator */}
+      {!cell && isThreatTarget && (
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="absolute w-[85%] h-[85%] rounded-full border-4 border-red-500/50 flex items-center justify-center bg-red-500/10 z-10"
+        >
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+        </motion.div>
+      )}
+
+      {/* Coach Move Indicator */}
+      {!cell && isCoachMove && !isThreatTarget && (
+        <motion.div
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="absolute w-[85%] h-[85%] rounded-full border-4 border-emerald-500/50 flex items-center justify-center bg-emerald-500/10"
+        >
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        </motion.div>
+      )}
+
+      {/* Stone */}
+      {cell && (
+        <div
+          className={`absolute w-[85%] h-[85%] rounded-full shadow-md transition-all duration-500 ${!isHex ? stoneStyle : ''} ${isLastMove ? 'animate-[stone-drop_0.4s_cubic-bezier(0.175,0.885,0.32,1.275)]' : ''}`}
+          style={isHex ? { backgroundColor: stoneStyle } : {}}
+        >
+          {/* Highlight for last move */}
+          {isLastMove && (
+            <div className={`absolute inset-0 rounded-full border-2 ${cell === 'black' ? 'border-white/50' : 'border-black/50'} scale-75 opacity-50`} />
+          )}
+          {/* Highlight for winning line */}
+          {isWinningCell && (
+            <div className="absolute inset-0 rounded-full bg-yellow-400/40 animate-pulse" />
+          )}
+          {/* Highlight for threat stone */}
+          {isThreatStone && !isWinningCell && (
+            <div className="absolute inset-0 rounded-full bg-red-500/30 animate-pulse" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 interface GomokuBoardProps {
   board: BoardState;
@@ -13,8 +99,34 @@ interface GomokuBoardProps {
   threats?: Threat[];
 }
 
-export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, skin, threats = [] }: GomokuBoardProps) {
+export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, skin, threats = [] }: GomokuBoardProps) {
   const size = board.length;
+
+  // Stable callback for cell clicks to prevent re-renders of memoized cells
+  const onCellClickRef = useRef(onCellClick);
+  useEffect(() => {
+    onCellClickRef.current = onCellClick;
+  }, [onCellClick]);
+
+  const handleCellClick = useCallback((row: number, col: number) => {
+    onCellClickRef.current(row, col);
+  }, []);
+
+  // Pre-calculate sets for O(1) lookups during render
+  const { threatTargets, threatStones, winningCells } = useMemo(() => {
+    const targets = new Set<string>();
+    const stones = new Set<string>();
+    const winning = new Set<string>();
+
+    threats.forEach(t => {
+      t.targets.forEach(([tr, tc]) => targets.add(`${tr}-${tc}`));
+      t.stones.forEach(([sr, sc]) => stones.add(`${sr}-${sc}`));
+    });
+
+    winningLine?.forEach(([wr, wc]) => winning.add(`${wr}-${wc}`));
+
+    return { threatTargets: targets, threatStones: stones, winningCells: winning };
+  }, [threats, winningLine]);
 
   return (
     <div 
@@ -65,81 +177,27 @@ export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMo
         <div className="w-full h-full" style={{ display: 'grid', gridTemplateColumns: `repeat(${size}, 1fr)`, gridTemplateRows: `repeat(${size}, 1fr)` }}>
           {board.map((row, r) =>
             row.map((cell, c) => {
-              const isWinningCell = winningLine?.some(([wr, wc]) => wr === r && wc === c);
+              const cellKey = `${r}-${c}`;
+              const isWinningCell = winningCells.has(cellKey);
               const isLastMove = lastMove?.row === r && lastMove?.col === c;
               const isCoachMove = coachMove?.row === r && coachMove?.col === c;
-              
-              const threatTarget = threats.find(t => t.targets.some(([tr, tc]) => tr === r && tc === c));
-              const threatStone = threats.find(t => t.stones.some(([sr, sc]) => sr === r && sc === c));
+              const isThreatTarget = threatTargets.has(cellKey);
+              const isThreatStone = threatStones.has(cellKey);
 
               return (
-                <div
-                  key={`${r}-${c}`}
-                  className="relative flex items-center justify-center cursor-pointer hover:bg-black/5 rounded-full group"
-                  onClick={() => onCellClick(r, c)}
-                >
-                  {/* Hover indicator */}
-                  {!cell && !isCoachMove && !threatTarget && (
-                    <div className="absolute w-3/4 h-3/4 rounded-full opacity-0 group-hover:opacity-30 bg-black/20 transition-opacity" />
-                  )}
-
-                  {/* Threat Target Indicator */}
-                  {!cell && threatTarget && (
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="absolute w-[85%] h-[85%] rounded-full border-4 border-red-500/50 flex items-center justify-center bg-red-500/10 z-10"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    </motion.div>
-                  )}
-
-                  {/* Coach Move Indicator */}
-                  {!cell && isCoachMove && !threatTarget && (
-                    <motion.div
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="absolute w-[85%] h-[85%] rounded-full border-4 border-emerald-500/50 flex items-center justify-center bg-emerald-500/10"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    </motion.div>
-                  )}
-
-                  {/* Stone */}
-                  {cell && (
-                    <motion.div
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className={`absolute w-[85%] h-[85%] rounded-full shadow-md transition-all duration-500 ${
-                        cell === 'black' ? skin.blackStone : skin.whiteStone
-                      }`}
-                    >
-                      {/* Highlight for last move */}
-                      {isLastMove && (
-                        <div className={`absolute inset-0 rounded-full border-2 ${cell === 'black' ? 'border-white/50' : 'border-black/50'} scale-75 opacity-50`} />
-                      )}
-                      {/* Highlight for winning line */}
-                      {isWinningCell && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: [0, 1, 0] }}
-                          transition={{ repeat: Infinity, duration: 1.5 }}
-                          className="absolute inset-0 rounded-full bg-yellow-400/40"
-                        />
-                      )}
-                      {/* Highlight for threat stone */}
-                      {threatStone && !isWinningCell && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: [0, 1, 0] }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                          className="absolute inset-0 rounded-full bg-red-500/30"
-                        />
-                      )}
-                    </motion.div>
-                  )}
-                </div>
+                <GomokuCell
+                  key={cellKey}
+                  row={r}
+                  col={c}
+                  cell={cell}
+                  isWinningCell={isWinningCell}
+                  isLastMove={isLastMove}
+                  isCoachMove={isCoachMove}
+                  isThreatTarget={isThreatTarget}
+                  isThreatStone={isThreatStone}
+                  skin={skin}
+                  onCellClick={handleCellClick}
+                />
               );
             })
           )}
@@ -147,4 +205,4 @@ export function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMo
       </div>
     </div>
   );
-}
+});
