@@ -12,6 +12,7 @@ interface GomokuCellProps {
   isCoachMove: boolean;
   isThreatTarget: boolean;
   isThreatStone: boolean;
+  isKeyboardCursor: boolean;
   skin: Skin;
   onCellClick: (row: number, col: number) => void;
 }
@@ -27,6 +28,7 @@ const GomokuCell = memo(({
   isCoachMove,
   isThreatTarget,
   isThreatStone,
+  isKeyboardCursor,
   skin,
   onCellClick
 }: GomokuCellProps) => {
@@ -38,6 +40,11 @@ const GomokuCell = memo(({
       className="relative flex items-center justify-center cursor-pointer hover:bg-black/5 rounded-full group"
       onClick={() => onCellClick(row, col)}
     >
+      {/* Keyboard cursor indicator */}
+      {isKeyboardCursor && (
+        <div className="absolute w-full h-full rounded-full border-[3px] border-indigo-500/80 shadow-[0_0_8px_rgba(99,102,241,0.6)] z-20" />
+      )}
+
       {/* Hover indicator */}
       {!cell && !isCoachMove && !isThreatTarget && (
         <div className="absolute w-3/4 h-3/4 rounded-full opacity-0 group-hover:opacity-30 bg-black/20 transition-opacity" />
@@ -95,11 +102,12 @@ interface GomokuBoardProps {
   winningLine: [number, number][] | null;
   lastMove: { row: number; col: number } | null;
   coachMove?: { row: number; col: number } | null;
+  keyboardCursor?: { row: number; col: number } | null;
   skin: Skin;
   threats?: Threat[];
 }
 
-export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, skin, threats = [] }: GomokuBoardProps) {
+export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, keyboardCursor, skin, threats = [] }: GomokuBoardProps) {
   const size = board.length;
 
   // Stable callback for cell clicks to prevent re-renders of memoized cells
@@ -195,6 +203,7 @@ export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winni
                   isCoachMove={isCoachMove}
                   isThreatTarget={isThreatTarget}
                   isThreatStone={isThreatStone}
+                  isKeyboardCursor={keyboardCursor?.row === r && keyboardCursor?.col === c}
                   skin={skin}
                   onCellClick={handleCellClick}
                 />

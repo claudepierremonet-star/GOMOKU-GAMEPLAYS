@@ -21,19 +21,18 @@ import { toast } from 'sonner';
 
 const AMBIENT_COLORS = [
   { name: 'Aucun', value: 'transparent' },
-  { name: 'Noir', value: '#000000' },
-  { name: 'Rouge', value: '#ef4444' },
-  { name: 'Vert', value: '#22c55e' },
-  { name: 'Jaune', value: '#eab308' },
-  { name: 'Rose', value: '#ec4899' },
-  { name: 'Vert Anis', value: '#a3e635' },
-  { name: 'Orange', value: '#f97316' },
-  { name: 'Rouge Fluo', value: '#ff003c' },
-  { name: 'Vert Fluo', value: '#39ff14' },
+  { name: 'Noir Métallique', value: '#2a2a2a' },
+  { name: 'Noir', value: '#090909' },
+  { name: 'Or', value: '#FFD700' },
   { name: 'Jaune Fluo', value: '#eaff00' },
-  { name: 'Rose Fluo', value: '#ff00ff' },
-  { name: 'Vert Anis Fluo', value: '#ccff00' },
+  { name: 'Vert Fluo', value: '#39ff14' },
   { name: 'Orange Fluo', value: '#ff6600' },
+  { name: 'Bleu Fluo', value: '#0044ff' },
+  { name: 'Bleu Ciel Fluo', value: '#00ffff' },
+  { name: 'Bleu Électrique Fluo', value: '#0ff0fc' },
+  { name: 'Rouge Fluo', value: '#ff003c' },
+  { name: 'Beige Fluo', value: '#fffae6' },
+  { name: 'Blanc Fluo', value: '#ffffff' },
 ];
 
 type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial' | 'support' | 'privacy' | 'online';
@@ -380,6 +379,7 @@ export function AppScreens() {
   const [winner, setWinner] = useState<Player | 'draw' | null>(null);
   const [winningLine, setWinningLine] = useState<[number, number][] | null>(null);
   const [lastMove, setLastMove] = useState<{ row: number; col: number } | null>(null);
+  const [keyboardCursor, setKeyboardCursor] = useState<{ row: number; col: number } | null>(null);
   const [coachAdvice, setCoachAdvice] = useState<{ row: number; col: number; explanation: string } | null>(null);
   const [threats, setThreats] = useState<Threat[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -1137,6 +1137,60 @@ export function AppScreens() {
     }
   }, [winner]);
 
+  // Set initial cursor position when entering game
+  useEffect(() => {
+    if (currentScreen === 'game') {
+      setKeyboardCursor({ row: Math.floor(boardSize / 2), col: Math.floor(boardSize / 2) });
+    }
+  }, [currentScreen, boardSize]);
+
+  // Handle keyboard navigation inside the game screen
+  useEffect(() => {
+    if (currentScreen !== 'game' || winner || onlineOpponentLeft || hasForfeited) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Allow default behavior for typical inputs if they have focus (like chat)
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(e.key)) return;
+      e.preventDefault();
+
+      setKeyboardCursor((prev) => {
+        let { row, col } = prev || { row: Math.floor(boardSize / 2), col: Math.floor(boardSize / 2) };
+        
+        if (e.key === 'ArrowUp') row = Math.max(0, row - 1);
+        else if (e.key === 'ArrowDown') row = Math.min(boardSize - 1, row + 1);
+        else if (e.key === 'ArrowLeft') col = Math.max(0, col - 1);
+        else if (e.key === 'ArrowRight') col = Math.min(boardSize - 1, col + 1);
+        else if (e.key === 'Enter' || e.key === ' ') {
+          // Trigger the move! Note: state updates in handleCellClick expect latest state, 
+          // but we will call handleCellClick directly with row, col
+          setTimeout(() => {
+            if (handleCellClickRef.current) handleCellClickRef.current(row, col);
+          }, 0);
+        } else if (e.key === 'c' || e.key === 'C') {
+          // Additional shortcut: jump to coach advice if it exists
+          if (coachAdvice) {
+            row = coachAdvice.row;
+            col = coachAdvice.col;
+          }
+        }
+
+        return { row, col };
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentScreen, winner, onlineOpponentLeft, hasForfeited, boardSize, coachAdvice]); // Depend on coachAdvice to allow jumping to it
+
+  // Use a ref to access the latest handleCellClick safely from the effect
+  const handleCellClickRef = useRef<(r: number, c: number, ai?: boolean) => void>();
+  
+  useEffect(() => {
+    handleCellClickRef.current = handleCellClick;
+  });
+
   const handleCellClick = (row: number, col: number, isAiMove: boolean = false) => {
     if (board[row][col] || winner || onlineOpponentLeft) return;
     
@@ -1144,6 +1198,7 @@ export function AppScreens() {
       if (currentPlayer !== onlinePlayerColor) return;
       const socket = getSocket();
       socket.emit('makeMove', { roomId: onlineRoomId, row, col });
+      setKeyboardCursor({ row, col }); // Also snap cursor
       return;
     }
 
@@ -1161,6 +1216,9 @@ export function AppScreens() {
     playSound('move');
     setMoveHistory(prev => [...prev, { row, col, player: currentPlayer }]);
     setLastMove({ row, col });
+    
+    // Snap keyboard cursor to the most recently played move
+    setKeyboardCursor({ row, col });
 
     const winLine = checkWin(newBoard, row, col, currentPlayer, ruleSet === 'renju');
     if (winLine) {
@@ -1525,7 +1583,7 @@ export function AppScreens() {
     <div 
       className="min-h-screen bg-zinc-50 text-zinc-900 font-sans overflow-hidden relative"
       style={{
-        boxShadow: ambientColor !== 'transparent' ? `inset 0 0 0 8px ${ambientColor}` : 'none',
+        boxShadow: ambientColor !== 'transparent' ? `inset 0 0 0 4px ${ambientColor}` : 'none',
         transition: 'box-shadow 0.3s ease'
       }}
     >
@@ -1626,7 +1684,7 @@ export function AppScreens() {
                     className="flex items-center justify-center gap-3 bg-white text-zinc-900 py-4 px-6 rounded-2xl font-semibold hover:bg-zinc-50 transition-colors border border-zinc-200"
                   >
                     <Trophy size={20} />
-                    Statistics
+                    Stats & Replays
                   </button>
                   <button
                     onClick={() => setCurrentScreen('profile')}
@@ -1738,12 +1796,22 @@ export function AppScreens() {
                         </div>
                       </div>
                       <div className="text-sm text-zinc-500 flex items-center gap-2 mt-0.5 font-medium">
-                        <div className={`w-3 h-3 rounded-full ${onlinePlayerColor === 'black' ? 'bg-white border border-zinc-300' : 'bg-zinc-900'}`} />
-                        {onlinePlayerColor === 'black' ? 'White' : 'Black'}
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${onlinePlayerColor === 'black' ? 'bg-white border border-zinc-300' : 'bg-zinc-900'}`} />
+                        <span className="flex-shrink-0">{onlinePlayerColor === 'black' ? 'White' : 'Black'}</span>
                         {currentPlayer !== onlinePlayerColor && !winner && timeLimit > 0 && (
-                          <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-zinc-400'}`}>
-                            00:{timeLeft.toString().padStart(2, '0')}
-                          </span>
+                          <div className="flex items-center gap-2 ml-2">
+                            <div className="w-16 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
+                              <motion.div 
+                                className={`h-full ${timeLeft <= 10 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                                initial={{ width: "100%" }}
+                                animate={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+                                transition={{ duration: 1, ease: 'linear' }}
+                              />
+                            </div>
+                            <span className={`font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-zinc-500'}`}>
+                              00:{timeLeft.toString().padStart(2, '0')}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1802,6 +1870,7 @@ export function AppScreens() {
                     onCellClick={handleCellClick}
                     winningLine={winningLine}
                     lastMove={lastMove}
+                    keyboardCursor={keyboardCursor}
                     skin={currentSkin}
                     threats={threats}
                   />
@@ -1936,12 +2005,22 @@ export function AppScreens() {
                         </span>
                       </div>
                       <div className="text-sm text-zinc-500 flex items-center gap-2 mt-0.5 font-medium">
-                        <div className={`w-3 h-3 rounded-full ${onlinePlayerColor === 'black' ? 'bg-zinc-900' : 'bg-white border border-zinc-300'}`} />
-                        {onlinePlayerColor === 'black' ? 'Black' : 'White'}
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${onlinePlayerColor === 'black' ? 'bg-zinc-900' : 'bg-white border border-zinc-300'}`} />
+                        <span className="flex-shrink-0">{onlinePlayerColor === 'black' ? 'Black' : 'White'}</span>
                         {currentPlayer === onlinePlayerColor && !winner && timeLimit > 0 && (
-                          <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
-                            00:{timeLeft.toString().padStart(2, '0')}
-                          </span>
+                          <div className="flex items-center gap-2 ml-2">
+                            <div className="w-16 h-1.5 bg-zinc-200 rounded-full overflow-hidden flex-shrink-0">
+                              <motion.div 
+                                className={`h-full ${timeLeft <= 10 ? 'bg-red-500' : 'bg-emerald-500'}`}
+                                initial={{ width: "100%" }}
+                                animate={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+                                transition={{ duration: 1, ease: 'linear' }}
+                              />
+                            </div>
+                            <span className={`font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
+                              00:{timeLeft.toString().padStart(2, '0')}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2058,6 +2137,7 @@ export function AppScreens() {
                 winningLine={winningLine}
                 lastMove={lastMove}
                 coachMove={coachAdvice ? { row: coachAdvice.row, col: coachAdvice.col } : null}
+                keyboardCursor={keyboardCursor}
                 skin={currentSkin}
                 threats={threats}
               />
@@ -2148,7 +2228,33 @@ export function AppScreens() {
                         </span>
                       </div>
                     )}
-                    <div className="flex gap-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const tempMatch: MatchRecord = {
+                            id: 'temp_replay',
+                            date: Date.now(),
+                            opponent: gameMode === 'online' ? (opponentName || 'Unknown') : (gameMode === 'pve' ? `AI (${aiDifficulty})` : 'Local Player'),
+                            opponentElo: playerElo,
+                            playerEloBefore: playerElo - (eloChange || 0),
+                            playerEloAfter: playerElo,
+                            result: winner === 'draw' ? 'draw' : (winner === 'black' ? 'win' : 'loss'),
+                            moves: moveHistory,
+                            boardSize: boardSize,
+                            gameMode: gameMode,
+                            winner: winner || 'draw',
+                            selectedSkin: selectedSkinId,
+                            selectedCharacter: selectedCharacterId
+                          };
+                          startReplay(tempMatch);
+                        }}
+                        className="flex-1 bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Play size={16} />
+                        Watch Replay
+                      </button>
+                    </div>
+                    <div className="flex gap-3 mt-3">
                       {gameMode !== 'online' && (
                         <button
                           onClick={resetGame}
@@ -2987,7 +3093,8 @@ export function AppScreens() {
                           setIsSearchingMatch(true);
                           setSearchStartTime(Date.now());
                           const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
-                          getSocket().emit('findMatch', { type: 'ranked', boardSize, ruleSet, elo: playerElo, userId: user?.uid, region, timeLimit });
+                          const effectiveTimeLimit = timeLimit === 0 ? 30 : timeLimit;
+                          getSocket().emit('findMatch', { type: 'ranked', boardSize, ruleSet, elo: playerElo, userId: user?.uid, region, timeLimit: effectiveTimeLimit });
                         }}
                         className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
                       >
@@ -3005,7 +3112,8 @@ export function AppScreens() {
                           setIsSearchingMatch(true);
                           setSearchStartTime(Date.now());
                           const region = selectedRegion === 'auto' ? Intl.DateTimeFormat().resolvedOptions().timeZone : selectedRegion;
-                          getSocket().emit('findMatch', { type: 'casual', boardSize, ruleSet, userId: user?.uid, region, timeLimit });
+                          const effectiveTimeLimit = timeLimit === 0 ? 30 : timeLimit;
+                          getSocket().emit('findMatch', { type: 'casual', boardSize, ruleSet, userId: user?.uid, region, timeLimit: effectiveTimeLimit });
                         }}
                         className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
                       >
@@ -3200,37 +3308,44 @@ export function AppScreens() {
                       <User size={20} className="text-zinc-400" />
                       <span className="font-medium">Select Character</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
                       {[...CHARACTERS, ...(userProfile?.customCharacters || [])].map(char => {
                         const charColor = char.color ? (COLOR_MAP[char.color.toLowerCase()] || char.color) : '#6b7280';
                         return (
-                        <button
+                        <motion.button
+                          whileTap={{ scale: 0.98 }}
+                          whileHover={{ scale: 1.02 }}
                           key={char.id}
                           onClick={() => {
                             setSelectedCharacterId(char.id);
                             setSelectedSkinId(char.defaultSkin);
                           }}
-                          className={`relative flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${
+                          className={`relative flex items-center text-left p-3 rounded-2xl border-2 transition-all group ${
                             selectedCharacterId === char.id 
-                              ? 'bg-zinc-50 shadow-md scale-105' 
-                              : 'border-transparent bg-zinc-100 hover:bg-zinc-200'
+                              ? 'bg-white shadow-md ring-2 ring-offset-2' 
+                              : 'border-transparent bg-zinc-50/50 hover:bg-zinc-100 hover:shadow-sm'
                           }`}
-                          style={{ borderColor: selectedCharacterId === char.id ? charColor : 'transparent' }}
+                          style={{ borderColor: selectedCharacterId === char.id ? charColor : 'transparent', ringColor: charColor }}
                         >
-                          <div 
-                            className="absolute top-2 right-2 w-3 h-3 rounded-full border border-black/10 shadow-sm"
-                            style={{ backgroundColor: charColor }}
-                            title={`Color: ${char.color}`}
-                          />
-                          <img 
-                            src={char.avatar} 
-                            alt={char.name} 
-                            className="w-12 h-12 rounded-full mb-2 object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                          <span className="text-xs font-bold text-center">{char.name}</span>
-                        </button>
-                      )})}
+                          <div className="relative">
+                            <img 
+                              src={char.avatar} 
+                              alt={char.name} 
+                              className="w-14 h-14 rounded-2xl object-cover bg-white shadow-sm border border-zinc-100 flex-shrink-0 transition-transform group-hover:scale-105"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div 
+                              className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm"
+                              style={{ backgroundColor: charColor }}
+                              title={`Color: ${char.color}`}
+                            />
+                          </div>
+                          <div className="ml-3 flex-1 overflow-hidden">
+                            <span className="text-sm font-bold text-zinc-900 block truncate">{char.name}</span>
+                            <span className="text-[10px] text-zinc-500 line-clamp-2 mt-0.5 leading-tight opacity-90">{char.bio}</span>
+                          </div>
+                        </motion.button>
+                        )})}
                     </div>
                   </div>
                   <div className="p-4">
@@ -3243,12 +3358,14 @@ export function AppScreens() {
                         const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.blackStone);
                         const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.whiteStone);
                         return (
-                          <button
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            whileHover={{ scale: 1.02 }}
                             key={skin.id + (skin.isCustom ? `_${skin.name}` : '')}
                             onClick={() => setSelectedSkinId(skin.id)}
                             className={`flex flex-col items-start p-3 rounded-2xl border-2 transition-all ${
                               selectedSkinId === skin.id 
-                                ? 'border-zinc-900 bg-zinc-50' 
+                                ? 'border-zinc-900 bg-zinc-50 ring-2 ring-zinc-900 ring-offset-2' 
                                 : 'border-transparent bg-zinc-100 hover:bg-zinc-200'
                             }`}
                           >
@@ -3266,7 +3383,7 @@ export function AppScreens() {
                               />
                             </div>
                             <span className="text-xs font-bold">{skin.name}</span>
-                          </button>
+                          </motion.button>
                         );
                       })}
                     </div>
