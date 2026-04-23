@@ -511,11 +511,11 @@ async function startServer() {
       }
     });
 
-    socket.on('sendMessage', ({ roomId, text, timestamp }) => {
+    socket.on('sendMessage', ({ roomId, text, timestamp, senderName }) => {
       const room = rooms.get(roomId);
       if (room) {
         socket.to(roomId).emit('receiveMessage', {
-          sender: `Player ${socket.id.substring(0, 4)}`,
+          sender: senderName || `Player ${socket.id.substring(0, 4)}`,
           text,
           timestamp
         });

@@ -84,7 +84,11 @@ const GomokuCell = memo(({
           )}
           {/* Highlight for winning line */}
           {isWinningCell && (
-            <div className="absolute inset-0 rounded-full bg-yellow-400/40 animate-pulse" />
+            <motion.div 
+              animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute inset-0 rounded-full bg-yellow-400 border-2 border-yellow-200 z-10 mix-blend-screen" 
+            />
           )}
           {/* Highlight for threat stone */}
           {isThreatStone && !isWinningCell && (

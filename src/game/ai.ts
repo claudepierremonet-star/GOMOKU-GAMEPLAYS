@@ -1,6 +1,6 @@
 import { BoardState, Player, checkWin } from './engine';
 
-export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' | 'Master';
+export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' | 'Master' | 'Grandmaster';
 
 function getAdjacentMoves(board: BoardState, distance: number = 1): {r: number, c: number}[] {
   const size = board.length;
@@ -175,7 +175,7 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
     return { row: move.r, col: move.c };
   }
 
-  const depth = difficulty === 'Expert' ? 2 : 3;
+  const depth = difficulty === 'Expert' ? 2 : (difficulty === 'Master' ? 3 : 4);
   
   function minimax(boardState: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean): number {
     if (depth === 0) {

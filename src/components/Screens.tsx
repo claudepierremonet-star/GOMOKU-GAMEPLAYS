@@ -14,7 +14,7 @@ import { TutorialScreen } from './TutorialScreen';
 import { CustomSkinDesigner } from './CustomSkinDesigner';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend, AreaChart, Area
+  PieChart, Pie, Cell, Legend, AreaChart, Area, BarChart, Bar
 } from 'recharts';
 
 import { toast } from 'sonner';
@@ -1228,7 +1228,18 @@ export function AppScreens() {
       setThreats([]);
       
       // Save local match to history
-      const opponentElo = gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0;
+      const calculateAiElo = (diff: Difficulty) => {
+        switch(diff) {
+          case 'Beginner': return 600;
+          case 'Intermediate': return 1000;
+          case 'Advanced': return 1400;
+          case 'Expert': return 1800;
+          case 'Master': return 2200;
+          case 'Grandmaster': return 2600;
+          default: return 1200;
+        }
+      };
+      const opponentElo = gameMode === 'pve' ? calculateAiElo(aiDifficulty) : 0;
       const result = currentPlayer === 'black' ? 'win' : 'loss';
       const eloChange = gameMode === 'pve' ? calculateEloChange(playerElo, opponentElo, result) : 0;
       const newElo = playerElo + eloChange;
@@ -1255,7 +1266,18 @@ export function AppScreens() {
       playSound('draw');
       setThreats([]);
       // Save draw to history
-      const opponentElo = gameMode === 'pve' ? (aiDifficulty === 'hard' ? 1800 : aiDifficulty === 'medium' ? 1200 : 600) : 0;
+      const calculateAiElo = (diff: Difficulty) => {
+        switch(diff) {
+          case 'Beginner': return 600;
+          case 'Intermediate': return 1000;
+          case 'Advanced': return 1400;
+          case 'Expert': return 1800;
+          case 'Master': return 2200;
+          case 'Grandmaster': return 2600;
+          default: return 1200;
+        }
+      };
+      const opponentElo = gameMode === 'pve' ? calculateAiElo(aiDifficulty) : 0;
       const eloChange = gameMode === 'pve' ? calculateEloChange(playerElo, opponentElo, 'draw') : 0;
       const newElo = playerElo + eloChange;
 
@@ -1290,7 +1312,8 @@ export function AppScreens() {
     const messageData = {
       roomId: onlineRoomId,
       text: chatInput.trim(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      senderName: user?.displayName || 'Opponent'
     };
 
     getSocket().emit('sendMessage', messageData);
@@ -1727,7 +1750,7 @@ export function AppScreens() {
                       <ChevronLeft size={20} />
                     </button>
                   </div>
-                  {(['Beginner', 'Intermediate', 'Advanced', 'Expert', 'Master'] as Difficulty[]).map(diff => (
+                  {(['Beginner', 'Intermediate', 'Advanced', 'Expert', 'Master', 'Grandmaster'] as Difficulty[]).map(diff => (
                     <button
                       key={diff}
                       onClick={() => {
@@ -1735,12 +1758,21 @@ export function AppScreens() {
                         setShowDifficultySelect(false);
                         startGame('pve');
                       }}
-                      className={`py-3 px-4 rounded-xl font-semibold text-left transition-colors ${
-                        aiDifficulty === diff 
-                          ? 'bg-zinc-900 text-white' 
-                          : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                      className={`relative py-3 px-4 rounded-xl font-semibold text-left transition-all overflow-hidden ${
+                        diff === 'Grandmaster'
+                          ? `bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm hover:opacity-90 ${aiDifficulty === diff ? 'ring-2 ring-purple-500 ring-offset-2' : ''}`
+                          : aiDifficulty === diff
+                            ? 'bg-zinc-900 text-white shadow-md'
+                            : diff === 'Beginner' ? 'bg-zinc-50 text-zinc-500 hover:bg-zinc-100'
+                            : diff === 'Intermediate' ? 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                            : diff === 'Advanced' ? 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
+                            : diff === 'Expert' ? 'bg-zinc-300 text-zinc-800 hover:bg-zinc-400'
+                            : 'bg-zinc-400 text-zinc-900 hover:bg-zinc-500' // Master
                       }`}
                     >
+                      {diff === 'Grandmaster' && aiDifficulty !== diff && (
+                        <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
+                      )}
                       {diff}
                     </button>
                   ))}
@@ -2496,7 +2528,7 @@ export function AppScreens() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
               <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100">
                 <h3 className="text-lg font-bold mb-6">Match Distribution</h3>
                 <div className="h-48 w-full">
@@ -2538,6 +2570,38 @@ export function AppScreens() {
               </div>
 
               <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100">
+                <h3 className="text-lg font-bold mb-6">Outcome Comparison</h3>
+                <div className="h-48 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={[
+                        { name: 'Wins', count: matchHistory.filter(m => m.result === 'win').length, fill: '#10b981' },
+                        { name: 'Losses', count: matchHistory.filter(m => m.result === 'loss').length, fill: '#ef4444' },
+                        { name: 'Draws', count: matchHistory.filter(m => m.result === 'draw').length, fill: '#71717a' },
+                      ]}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a', fontWeight: 'bold' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="count" radius={[6, 6, 6, 6]} barSize={32}>
+                        {
+                          [
+                            { fill: '#10b981' },
+                            { fill: '#ef4444' },
+                            { fill: '#71717a' }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))
+                        }
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100">
                 <h3 className="text-lg font-bold mb-6">Advanced Metrics</h3>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
@@ -2572,10 +2636,13 @@ export function AppScreens() {
                   <p className="text-zinc-400 text-center py-4 text-sm">Loading leaderboard...</p>
                 ) : (
                   leaderboard.map((player, i) => (
-                    <div 
+                    <motion.div 
                       key={player.uid} 
-                      className={`flex items-center justify-between p-3 rounded-2xl ${
-                        player.uid === user?.uid ? 'bg-indigo-50 border border-indigo-100' : 'bg-zinc-50'
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: i * 0.05, ease: "backOut" }}
+                      className={`flex items-center justify-between p-3 rounded-2xl transition-all hover:shadow-md hover:-translate-y-0.5 ${
+                        player.uid === user?.uid ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : 'bg-zinc-50 border border-transparent'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -2600,7 +2667,7 @@ export function AppScreens() {
                           style={{ backgroundColor: getRankTier(player.elo).color }}
                         />
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
               </div>
@@ -2616,9 +2683,12 @@ export function AppScreens() {
                   <p className="text-zinc-500 text-center py-8 font-medium">No matches played yet.</p>
                 ) : (
                   matchHistory.map((match, i) => (
-                    <div 
+                    <motion.div 
                       key={match.id} 
-                      className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl hover:bg-zinc-800 transition-colors cursor-pointer group"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.05, ease: "easeOut" }}
+                      className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-2xl hover:bg-zinc-800 transition-colors cursor-pointer group hover:shadow-lg hover:-translate-y-0.5"
                       onClick={() => startReplay(match)}
                     >
                       <div className="flex items-center gap-4">
@@ -2652,7 +2722,7 @@ export function AppScreens() {
                         </div>
                         <Play size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
                       </div>
-                    </div>
+                    </motion.div>
                   ))
                 )}
               </div>
@@ -3353,36 +3423,42 @@ export function AppScreens() {
                       <Palette size={20} className="text-zinc-400" />
                       <span className="font-medium">Board & Stone Skin</span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                    <div className="flex gap-4 overflow-x-auto pb-6 snap-x custom-scrollbar -mx-2 px-2">
                       {allSkins.map(skin => {
                         const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.blackStone);
                         const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.whiteStone);
                         return (
                           <motion.button
                             whileTap={{ scale: 0.95 }}
-                            whileHover={{ scale: 1.02 }}
+                            whileHover={{ scale: 1.05, y: -4 }}
                             key={skin.id + (skin.isCustom ? `_${skin.name}` : '')}
                             onClick={() => setSelectedSkinId(skin.id)}
-                            className={`flex flex-col items-start p-3 rounded-2xl border-2 transition-all ${
+                            className={`flex flex-col flex-shrink-0 items-center p-4 rounded-[2rem] border-[3px] transition-all w-36 snap-start relative overflow-hidden ${
                               selectedSkinId === skin.id 
-                                ? 'border-zinc-900 bg-zinc-50 ring-2 ring-zinc-900 ring-offset-2' 
-                                : 'border-transparent bg-zinc-100 hover:bg-zinc-200'
+                                ? 'border-zinc-900 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]' 
+                                : 'border-transparent bg-zinc-50 hover:bg-zinc-100/80 shadow-sm'
                             }`}
                           >
+                            {selectedSkinId === skin.id && (
+                              <div className="absolute top-2 right-2 w-5 h-5 bg-zinc-900 rounded-full flex items-center justify-center text-white z-10">
+                                <Check size={12} strokeWidth={4} />
+                              </div>
+                            )}
                             <div 
-                              className="w-full h-12 rounded-lg mb-2 flex items-center justify-center gap-2"
+                              className="w-full h-20 rounded-2xl mb-4 flex items-center justify-center gap-3 shadow-inner relative overflow-hidden"
                               style={{ backgroundColor: skin.boardColor }}
                             >
+                              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000), linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000)', backgroundSize: '10px 10px', backgroundPosition: '0 0, 5px 5px' }} />
                               <div 
-                                className={`w-4 h-4 rounded-full ${!isBlackHex ? skin.blackStone : ''}`} 
+                                className={`w-6 h-6 rounded-full shadow-lg border border-black/10 z-10 ${!isBlackHex ? skin.blackStone : ''}`} 
                                 style={isBlackHex ? { backgroundColor: skin.blackStone } : {}}
                               />
                               <div 
-                                className={`w-4 h-4 rounded-full ${!isWhiteHex ? skin.whiteStone : ''}`} 
+                                className={`w-6 h-6 rounded-full shadow-lg border border-black/10 z-10 ${!isWhiteHex ? skin.whiteStone : ''}`} 
                                 style={isWhiteHex ? { backgroundColor: skin.whiteStone } : {}}
                               />
                             </div>
-                            <span className="text-xs font-bold">{skin.name}</span>
+                            <span className={`text-sm font-black text-center leading-tight ${selectedSkinId === skin.id ? 'text-zinc-900' : 'text-zinc-500 group-hover:text-zinc-700'}`}>{skin.name}</span>
                           </motion.button>
                         );
                       })}
