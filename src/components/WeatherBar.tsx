@@ -130,8 +130,8 @@ export function WeatherBar() {
                   <Wind size={16} className={weather.aqi > 50 ? "text-amber-400" : "text-emerald-400"} />
                   <span>AQI {weather.aqi}</span>
                 </div>
-                <div className="hidden sm:block w-px h-4 bg-zinc-700"></div>
-                <div className="flex items-center gap-2" title="Risque Pollen">
+                <div className="hidden md:block w-px h-4 bg-zinc-700"></div>
+                <div className="hidden md:flex items-center gap-2" title="Risque Pollen">
                   <Leaf size={16} className={weather.pollen === 'Élevé' ? "text-red-400" : weather.pollen === 'Moyen' ? "text-amber-400" : "text-emerald-400"} />
                   <span>Pollen: {weather.pollen}</span>
                 </div>

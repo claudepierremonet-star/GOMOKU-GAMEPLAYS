@@ -65,7 +65,8 @@
             "aiDifficulty": { "type": "string", "description": "Preferred AI difficulty" },
             "soundEnabled": { "type": "boolean", "description": "Whether sound effects are enabled" },
             "selectedSkin": { "type": "string", "description": "ID of the selected stone/board skin" },
-            "selectedCharacter": { "type": "string", "description": "ID of the selected character profile" }
+            "selectedCharacter": { "type": "string", "description": "ID of the selected character profile" },
+            "selectedRegion": { "type": "string", "description": "Preferred matchmaking region" }
           }
         }
       },

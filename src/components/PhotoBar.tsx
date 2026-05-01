@@ -50,9 +50,8 @@ export function PhotoBar() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="relative bg-white/10 backdrop-blur-xl rounded-r-3xl shadow-2xl cursor-pointer pointer-events-auto border border-white/20 border-l-0 p-2 group"
+            className="relative bg-white/10 backdrop-blur-xl rounded-r-3xl shadow-2xl cursor-pointer pointer-events-auto border border-white/20 border-l-0 p-2 group w-[280px] h-[180px] sm:w-[320px] sm:h-[220px]"
             onClick={() => setIsOpen(false)}
-            style={{ width: '320px', height: '220px' }}
           >
             <div className="relative w-full h-full rounded-2xl overflow-hidden bg-zinc-900 shadow-inner">
               {LANDSCAPES.map((photo, index) => (

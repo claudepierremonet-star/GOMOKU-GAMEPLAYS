@@ -42,6 +42,8 @@ export const getNextRank = (elo: number) => {
 
 export type SkinId = string;
 
+export type UiStyle = 'modern' | 'pixel' | 'zen' | 'cyberpunk' | 'monochrome' | 'retro' | 'midnight' | 'nature' | 'terminal' | 'bubblegum';
+
 export interface Skin {
   id: SkinId;
   name: string;
@@ -64,13 +66,31 @@ export const SKINS: Skin[] = [
     description: 'Traditional Go board feel.'
   },
   {
+    id: 'midnight',
+    name: 'Midnight Gold',
+    boardColor: '#1e293b',
+    lineColor: 'rgba(255,255,255,0.1)',
+    blackStone: 'bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 shadow-[0_4px_10px_rgba(245,158,11,0.3)]',
+    whiteStone: 'bg-gradient-to-br from-slate-100 via-slate-300 to-slate-500 shadow-[0_4px_10px_rgba(148,163,184,0.3)]',
+    description: 'Gold and silver on dark navy.'
+  },
+  {
     id: 'neon',
     name: 'Cyberpunk',
     boardColor: '#0f172a',
     lineColor: 'rgba(56,189,248,0.3)',
-    blackStone: 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.5)]',
-    whiteStone: 'bg-gradient-to-br from-cyan-400 to-blue-500 shadow-[0_0_10px_rgba(34,211,238,0.5)]',
+    blackStone: 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.6)]',
+    whiteStone: 'bg-gradient-to-br from-cyan-400 to-blue-500 shadow-[0_0_15px_rgba(34,211,238,0.6)]',
     description: 'Futuristic neon glow.'
+  },
+  {
+    id: 'forest',
+    name: 'Jade Garden',
+    boardColor: '#064e3b',
+    lineColor: 'rgba(255,255,255,0.15)',
+    blackStone: 'bg-gradient-to-br from-emerald-700 to-emerald-950 border border-emerald-400/30',
+    whiteStone: 'bg-gradient-to-br from-emerald-50 to-emerald-200 border border-emerald-600/20',
+    description: 'Serene emerald and jade.'
   },
   {
     id: 'wooden',
@@ -80,6 +100,15 @@ export const SKINS: Skin[] = [
     blackStone: 'bg-gradient-to-br from-stone-800 to-stone-950',
     whiteStone: 'bg-gradient-to-br from-stone-100 to-stone-300',
     description: 'Deep mahogany wood texture.'
+  },
+  {
+    id: 'ruby',
+    name: 'Imperial Red',
+    boardColor: '#7f1d1d',
+    lineColor: 'rgba(254,240,138,0.2)',
+    blackStone: 'bg-gradient-to-br from-zinc-800 to-black border border-zinc-700',
+    whiteStone: 'bg-gradient-to-br from-rose-400 to-rose-600 shadow-[0_4px_10px_rgba(225,29,72,0.3)]',
+    description: 'Crimson board with obsidian and ruby.'
   },
   {
     id: 'glass',
@@ -98,6 +127,15 @@ export const SKINS: Skin[] = [
     blackStone: 'bg-zinc-900',
     whiteStone: 'bg-white border-2 border-zinc-200',
     description: 'Clean and modern high-contrast.'
+  },
+  {
+    id: 'pixel',
+    name: 'Retro Arcade',
+    boardColor: '#000000',
+    lineColor: '#333333',
+    blackStone: 'bg-pink-500 border-b-4 border-r-4 border-pink-700',
+    whiteStone: 'bg-yellow-400 border-b-4 border-r-4 border-yellow-600',
+    description: '8-bit aesthetic with bold colors.'
   }
 ];
 
@@ -135,6 +173,10 @@ export interface UserProfile {
 export const CHARACTERS: Character[] = [
   { id: 'master_lin', name: 'Wei Lin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=MasterLin&backgroundColor=b6e3f4', bio: 'A legendary master who listens to the stones.', defaultSkin: 'classic', color: 'emerald' },
   { id: 'cyber_x', name: 'Unit-734', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=CyberX&backgroundColor=c0aede', bio: 'Calculates 14 million outcomes per microsecond.', defaultSkin: 'neon', color: 'cyan' },
+  { id: 'sage_elara', name: 'Sage Elara', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=SageElara&backgroundColor=1e293b', bio: 'Harnesses the celestial energy of the Midnight Gold board.', defaultSkin: 'midnight', color: 'amber' },
+  { id: 'jade_weaver', name: 'Jade Weaver', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=JadeWeaver&backgroundColor=064e3b', bio: 'Patterns her moves after the growth of the deep forest.', defaultSkin: 'forest', color: 'emerald' },
+  { id: 'crimson_king', name: 'Crimson King', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=CrimsonKing&backgroundColor=7f1d1d', bio: 'Dominates with a bold, aggressive style on the Imperial board.', defaultSkin: 'ruby', color: 'rose' },
+  { id: 'retro_rex', name: 'Retro Rex', avatar: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=RetroRex&backgroundColor=000000', bio: 'A hero from an 8-bit era. High score is his only goal.', defaultSkin: 'pixel', color: 'yellow' },
   { id: 'nature_spirit', name: 'Elara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=NatureSpirit&backgroundColor=ffdfbf', bio: 'Plays entirely based on the energy of the wind.', defaultSkin: 'wooden', color: 'green' },
   // 25 Male Characters (using micah)
   { id: 'm_guerrier', name: 'Gunnar', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gunnar&backgroundColor=ffdfbf', bio: 'Strikes the board like thunder. Fear his offensive sweeps.', defaultSkin: 'classic', color: 'red' },
@@ -187,5 +229,60 @@ export const CHARACTERS: Character[] = [
   { id: 'f_reine', name: 'Victoria', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Victoria&backgroundColor=b6e3f4', bio: 'Has an aura that commands respect on the board.', defaultSkin: 'classic', color: 'gold' },
   { id: 'f_hacker', name: 'Trinity', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Trinity&backgroundColor=c0aede', bio: 'Bypasses standard defenses with ease.', defaultSkin: 'neon', color: 'lime' },
   { id: 'f_moniale', name: 'Teresa', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Teresa&backgroundColor=d1d4f9', bio: 'Never gets frustrated, even when cornered.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'f_chasseuse', name: 'Artemis', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Artemis&backgroundColor=ffd5dc', bio: 'Draws her bow and secures the win from afar.', defaultSkin: 'wooden', color: 'green' }
+  { id: 'f_chasseuse', name: 'Artemis', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Artemis&backgroundColor=ffd5dc', bio: 'Draws her bow and secures the win from afar.', defaultSkin: 'wooden', color: 'green' },
+  // Bob Cut Collection
+  { id: 'bob_1', name: 'Bobbie', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob1&baseColor=f87171&hair=bob', bio: 'Precision-cut moves for a precision-cut look.', defaultSkin: 'minimal', color: 'rose' },
+  { id: 'bob_2', name: 'Sleek Sarah', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob2&baseColor=60a5fa&hair=bob', bio: 'Aerodynamic hair for lightning-fast strategy.', defaultSkin: 'glass', color: 'blue' },
+  { id: 'bob_3', name: 'Autumn Bob', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob3&baseColor=fbbf24&hair=bob', bio: 'The colors of the falls, the strategy of the mountain.', defaultSkin: 'wooden', color: 'amber' },
+  { id: 'bob_4', name: 'Indigo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob4&baseColor=818cf8&hair=bob', bio: 'Deeply thoughtful, deeply stylish.', defaultSkin: 'neon', color: 'indigo' },
+  { id: 'bob_5', name: 'Jade', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob5&baseColor=34d399&hair=bob', bio: 'Green is the color of growth and victory.', defaultSkin: 'forest', color: 'emerald' },
+
+  // Monster Horde (40 characters)
+  { id: 'mon_1', name: 'Blobbo', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Blobbo&backgroundColor=f43f5e', bio: 'A gelatinous genius from the red nebula.', defaultSkin: 'ruby', color: 'rose' },
+  { id: 'mon_2', name: 'Grumpus', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Grumpus&backgroundColor=1e293b', bio: 'Only happy when he is making your lives difficult.', defaultSkin: 'midnight', color: 'slate' },
+  { id: 'mon_3', name: 'Zorg', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Zorg&backgroundColor=9333ea', bio: 'Does not compute "loss". Only "total dominance".', defaultSkin: 'neon', color: 'purple' },
+  { id: 'mon_4', name: 'Eyeball', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Eyeball&backgroundColor=fbbf24', bio: 'Sees every potential line 50 moves ahead.', defaultSkin: 'minimal', color: 'amber' },
+  { id: 'mon_5', name: 'Spike', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Spike&backgroundColor=10b981', bio: 'Sharp moves and even sharper hardware.', defaultSkin: 'forest', color: 'emerald' },
+  { id: 'mon_6', name: 'Gloop', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Gloop&backgroundColor=0ea5e9', bio: 'Leaves a sticky trail of stones you can\'t ignore.', defaultSkin: 'glass', color: 'sky' },
+  { id: 'mon_7', name: 'Rusty', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Rusty&backgroundColor=ea580c', bio: 'An old machine with timeless tactical wisdom.', defaultSkin: 'wooden', color: 'orange' },
+  { id: 'mon_8', name: 'Pinky', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Pinky&backgroundColor=db2777', bio: 'Looks cute, plays like a devouring beast.', defaultSkin: 'pixel', color: 'pink' },
+  { id: 'mon_9', name: 'Shadow', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Shadow&backgroundColor=000000', bio: 'Emerges from the darkness to steal your win.', defaultSkin: 'midnight', color: 'black' },
+  { id: 'mon_10', name: 'Sparky', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Sparky&backgroundColor=eab308', bio: 'Highly energetic and unpredictable patterns.', defaultSkin: 'neon', color: 'yellow' },
+  { id: 'mon_11', name: 'Munch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Munch&backgroundColor=4f46e5', bio: 'Hungers for your stones. Don\'t leave gaps.', defaultSkin: 'classic', color: 'indigo' },
+  { id: 'mon_12', name: 'Blink', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Blink&backgroundColor=ef4444', bio: 'He is in three places on the board at once.', defaultSkin: 'neon', color: 'red' },
+  { id: 'mon_13', name: 'Goop', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Goop&backgroundColor=166534', bio: 'Slow, steady, and inevitable.', defaultSkin: 'forest', color: 'green' },
+  { id: 'mon_14', name: 'Clicker', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Clicker&backgroundColor=71717a', bio: 'Every move sounds like a mechanical clock.', defaultSkin: 'minimal', color: 'zinc' },
+  { id: 'mon_15', name: 'Beast', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Beast&backgroundColor=7c2d12', bio: 'Pure aggression. No defense, only attack.', defaultSkin: 'ruby', color: 'orange' },
+  { id: 'mon_16', name: 'Volt', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Volt&backgroundColor=2563eb', bio: 'Electrifying speed and shocking accuracy.', defaultSkin: 'neon', color: 'blue' },
+  { id: 'mon_17', name: 'Squelch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Squelch&backgroundColor=a21caf', bio: 'Don\'t slip on his unusual formations.', defaultSkin: 'glass', color: 'fuchsia' },
+  { id: 'mon_18', name: 'Tank', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Tank&backgroundColor=3f6212', bio: 'Immovable objects are its specialty.', defaultSkin: 'wooden', color: 'lime' },
+  { id: 'mon_19', name: 'Nibble', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Nibble&backgroundColor=be185d', bio: 'Eats away at your defense one stone at a time.', defaultSkin: 'pixel', color: 'pink' },
+  { id: 'mon_20', name: 'Turbo', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Turbo&backgroundColor=1d4ed8', bio: 'Optimized for 1,000 moves per second.', defaultSkin: 'neon', color: 'blue' },
+  { id: 'mon_21', name: 'Glitch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Glitch&backgroundColor=4338ca', bio: 'His moves shouldn\'t work, but they do.', defaultSkin: 'glass', color: 'indigo' },
+  { id: 'mon_22', name: 'Gear', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Gear&backgroundColor=374151', bio: 'A master of interlocking systems.', defaultSkin: 'classic', color: 'gray' },
+  { id: 'mon_23', name: 'Slime', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Slime&backgroundColor=15803d', bio: 'Adapts to any board shape instantly.', defaultSkin: 'forest', color: 'green' },
+  { id: 'mon_24', name: 'Circuit', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Circuit&backgroundColor=b91c1c', bio: 'Connected in ways you won\'t see coming.', defaultSkin: 'neon', color: 'red' },
+  { id: 'mon_25', name: 'Wiggler', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Wiggler&backgroundColor=7e22ce', bio: 'Slithers through your lines with ease.', defaultSkin: 'neon', color: 'purple' },
+  { id: 'mon_26', name: 'Bolt', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Bolt&backgroundColor=0369a1', bio: 'Strikes once and ends the game.', defaultSkin: 'glass', color: 'sky' },
+  { id: 'mon_27', name: 'Ooze', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Ooze&backgroundColor=4d7c0f', bio: 'Slowly suffocates your board presence.', defaultSkin: 'forest', color: 'lime' },
+  { id: 'mon_28', name: 'Chip', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Chip&backgroundColor=b45309', bio: 'Small size, massive processing power.', defaultSkin: 'pixel', color: 'amber' },
+  { id: 'mon_29', name: 'Chomp', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Chomp&backgroundColor=9f1239', bio: 'Takes what he wants, especially win lines.', defaultSkin: 'ruby', color: 'rose' },
+  { id: 'mon_30', name: 'Signal', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Signal&backgroundColor=0e7490', bio: 'Transmits winning vibes only.', defaultSkin: 'minimal', color: 'cyan' },
+  { id: 'mon_31', name: 'Troll', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Troll&backgroundColor=431407', bio: 'Loves blocking you just for the fun of it.', defaultSkin: 'wooden', color: 'brown' },
+  { id: 'mon_32', name: 'Servo', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Servo&backgroundColor=065f46', bio: 'Smooth and consistent performance.', defaultSkin: 'minimal', color: 'emerald' },
+  { id: 'mon_33', name: 'Gargoyle', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Gargoyle&backgroundColor=334155', bio: 'Stony silence and cold, hard calculations.', defaultSkin: 'midnight', color: 'slate' },
+  { id: 'mon_34', name: 'Logic', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Logic&backgroundColor=1e1b4b', bio: 'Pure mathematical reasoning.', defaultSkin: 'minimal', color: 'indigo' },
+  { id: 'mon_35', name: 'Crusher', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Crusher&backgroundColor=991b1b', bio: 'He doesn\'t just win; he dominates.', defaultSkin: 'ruby', color: 'red' },
+  { id: 'mon_36', name: 'Kernel', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Kernel&backgroundColor=374151', bio: 'At the heart of every machine.', defaultSkin: 'minimal', color: 'gray' },
+  { id: 'mon_37', name: 'Spook', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Spook&backgroundColor=525252', bio: 'Now you see his win line, now you don\'t.', defaultSkin: 'midnight', color: 'zinc' },
+  { id: 'mon_38', name: 'Crank', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Crank&backgroundColor=78350f', bio: 'Always turning the gears of destiny.', defaultSkin: 'wooden', color: 'orange' },
+  { id: 'mon_39', name: 'Puff', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Puff&backgroundColor=be123c', bio: 'Soft outside, titanium logic inside.', defaultSkin: 'pixel', color: 'rose' },
+  { id: 'mon_40', name: 'Omega', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Omega&backgroundColor=000000', bio: 'The binary beginning and end.', defaultSkin: 'neon', color: 'white' },
+
+  // Mixed Bob Monsters
+  { id: 'mon_bob_1', name: 'B-Monster', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster1&backgroundColor=f43f5e&hair=bob', bio: 'A monster with a permit for style.', defaultSkin: 'ruby', color: 'rose' },
+  { id: 'mon_bob_2', name: 'Cuty-Scary', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=BobMonster2&backgroundColor=10b981&hair=bob', bio: 'The bob cut makes the horns look fashionable.', defaultSkin: 'forest', color: 'emerald' },
+  { id: 'mon_bob_3', name: 'Void Bob', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster3&backgroundColor=1e293b&hair=bob', bio: 'The stylish end of the universe.', defaultSkin: 'midnight', color: 'slate' },
+  { id: 'mon_bob_4', name: 'Cyber Bob', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=BobMonster4&backgroundColor=9333ea&hair=bob', bio: 'Bob cuts on robots: The next frontier.', defaultSkin: 'neon', color: 'purple' },
+  { id: 'mon_bob_5', name: 'Glam-Ghou', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster5&backgroundColor=db2777&hair=bob', bio: 'Terror has never looked this chic.', defaultSkin: 'pixel', color: 'pink' }
 ];

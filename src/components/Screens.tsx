@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Pause, Settings, Trophy, User, ChevronLeft, ChevronRight, SkipBack, SkipForward, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2, MapPin, Plus } from 'lucide-react';
+import { Play, Pause, Settings, Trophy, User, ChevronLeft, ChevronRight, SkipBack, SkipForward, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2, MapPin, Plus, Zap, Contrast, Clock, Heart, Terminal } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GomokuBoard } from './GomokuBoard';
-import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull, Threat, findThreats } from '../game/engine';
+import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull, Threat, findThreats, getForbiddenMoveReason, RenjuRules } from '../game/engine';
 import { getBestMove, getCoachAdvice, Difficulty } from '../game/ai';
 import { connectSocket, disconnectSocket, getSocket } from '../game/socket';
-import { MatchRecord, getRankTier, getNextRank, RANK_TIERS, SKINS, CHARACTERS, SkinId, UserProfile, Character, Skin } from '../types';
+import { MatchRecord, getRankTier, getNextRank, RANK_TIERS, SKINS, CHARACTERS, SkinId, UserProfile, Character, Skin, UiStyle } from '../types';
 import { auth, db, loginWithGoogle, logout, onAuthStateChanged, User as FirebaseUser, OperationType, handleFirestoreError, doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, addDoc, collection, query, where, orderBy, limit, onSnapshot, serverTimestamp, Timestamp } from '../firebase';
 
 import { MusicPlayer } from './MusicPlayer';
@@ -37,7 +37,7 @@ const AMBIENT_COLORS = [
 
 type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial' | 'support' | 'privacy' | 'online';
 type GameMode = 'pvp' | 'pve' | 'online';
-type BoardSize = 15 | 19;
+type BoardSize = 13 | 15 | 19;
 type RuleSet = 'casual' | 'renju';
 type StartingPlayer = 'human' | 'ai';
 type TimeLimit = 0 | 15 | 30 | 60;
@@ -71,6 +71,7 @@ interface SavedGameState {
   selectedCharacterId: string;
   lastMove: { row: number; col: number } | null;
   ruleSet: RuleSet;
+  renjuRules: RenjuRules;
 }
 
 export function AppScreens() {
@@ -108,9 +109,18 @@ export function AppScreens() {
     onlinePlayerColorRef.current = color;
   };
 
+  const [uiStyle, setUiStyle] = useState<UiStyle>(() => {
+    const saved = localStorage.getItem('gomoku_uiStyle');
+    return (saved as UiStyle) || 'modern';
+  });
+
   const [onlineOpponentLeft, setOnlineOpponentLeft] = useState(false);
   const [endReason, setEndReason] = useState<string | null>(null);
-  const [selectedRegion, setSelectedRegion] = useState<string>('auto');
+  const [forbiddenReason, setForbiddenReason] = useState<'double-three' | 'double-four' | 'overline' | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string>(() => {
+    const saved = localStorage.getItem('gomoku_selectedRegion');
+    return saved || 'auto';
+  });
   const [locationName, setLocationName] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [playerElo, setPlayerEloState] = useState<number>(1200);
@@ -149,6 +159,10 @@ export function AppScreens() {
   const [ruleSet, setRuleSet] = useState<RuleSet>(() => {
     const saved = localStorage.getItem('gomoku_ruleSet');
     return (saved as RuleSet) || 'casual';
+  });
+  const [renjuRules, setRenjuRules] = useState<RenjuRules>(() => {
+    const saved = localStorage.getItem('gomoku_renjuRules');
+    return saved ? JSON.parse(saved) : { doubleThree: true, doubleFour: true, overline: true };
   });
   const [startingPlayer, setStartingPlayer] = useState<StartingPlayer>(() => {
     const saved = localStorage.getItem('gomoku_startingPlayer');
@@ -280,6 +294,13 @@ export function AppScreens() {
 
   // Persistence effects
   useEffect(() => {
+    localStorage.setItem('gomoku_uiStyle', uiStyle);
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, 'users', user.uid), { 'settings.uiStyle': uiStyle }).catch(err => console.error("Error saving uiStyle:", err));
+    }
+  }, [uiStyle, user, isAuthLoading]);
+
+  useEffect(() => {
     localStorage.setItem('gomoku_boardSize', boardSize.toString());
     if (user && !isAuthLoading) {
       updateDoc(doc(db, 'users', user.uid), { 'settings.boardSize': boardSize }).catch(err => console.error("Error saving boardSize:", err));
@@ -292,6 +313,13 @@ export function AppScreens() {
       updateDoc(doc(db, 'users', user.uid), { 'settings.ruleSet': ruleSet }).catch(err => console.error("Error saving ruleSet:", err));
     }
   }, [ruleSet, user, isAuthLoading]);
+
+  useEffect(() => {
+    localStorage.setItem('gomoku_renjuRules', JSON.stringify(renjuRules));
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, 'users', user.uid), { 'settings.renjuRules': renjuRules }).catch(err => console.error("Error saving renjuRules:", err));
+    }
+  }, [renjuRules, user, isAuthLoading]);
 
   useEffect(() => {
     localStorage.setItem('gomoku_startingPlayer', startingPlayer);
@@ -374,6 +402,13 @@ export function AppScreens() {
     }
   }, [selectedCharacterId, user, isAuthLoading]);
 
+  useEffect(() => {
+    localStorage.setItem('gomoku_selectedRegion', selectedRegion);
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, 'users', user.uid), { 'settings.selectedRegion': selectedRegion }).catch(err => console.error("Error saving selectedRegion:", err));
+    }
+  }, [selectedRegion, user, isAuthLoading]);
+
   const [board, setBoard] = useState<BoardState>(createEmptyBoard(boardSize));
   const [currentPlayer, setCurrentPlayer] = useState<Player>('black');
   const [winner, setWinner] = useState<Player | 'draw' | null>(null);
@@ -444,7 +479,8 @@ export function AppScreens() {
         selectedSkinId,
         selectedCharacterId,
         lastMove,
-        ruleSet
+        ruleSet,
+        renjuRules
       };
       localStorage.setItem('gomoku_saved_game', JSON.stringify(gameState));
     } else if (winner || currentScreen === 'home') {
@@ -472,6 +508,7 @@ export function AppScreens() {
         setSelectedCharacterId(state.selectedCharacterId);
         setLastMove(state.lastMove);
         setRuleSet(state.ruleSet);
+        if (state.renjuRules) setRenjuRules(state.renjuRules);
         
         setWinner(null);
         setWinningLine(null);
@@ -584,6 +621,7 @@ export function AppScreens() {
           
           // Load settings from Firebase if they exist
           if (data.settings) {
+            if (data.settings.uiStyle) setUiStyle(data.settings.uiStyle);
             if (data.settings.boardSize) setBoardSize(data.settings.boardSize);
             if (data.settings.ruleSet) setRuleSet(data.settings.ruleSet);
             if (data.settings.startingPlayer) setStartingPlayer(data.settings.startingPlayer);
@@ -592,6 +630,7 @@ export function AppScreens() {
             if (data.settings.musicEnabled !== undefined) setMusicEnabled(data.settings.musicEnabled);
             if (data.settings.selectedSkin) setSelectedSkinId(data.settings.selectedSkin as SkinId);
             if (data.settings.selectedCharacter) setSelectedCharacterId(data.settings.selectedCharacter);
+            if (data.settings.selectedRegion) setSelectedRegion(data.settings.selectedRegion);
             
             setUserProfile({
               uid: firebaseUser.uid,
@@ -631,7 +670,8 @@ export function AppScreens() {
               soundEnabled,
               musicEnabled,
               selectedSkin: selectedSkinId,
-              selectedCharacter: selectedCharacterId
+              selectedCharacter: selectedCharacterId,
+              selectedRegion
             }
           });
           setUserProfile(initialProfile);
@@ -651,7 +691,7 @@ export function AppScreens() {
             const data = doc.data();
             return {
               ...data,
-              date: (data.date as Timestamp).toMillis(),
+              date: data.date ? (data.date as Timestamp).toMillis() : Date.now(),
               // Map Firestore fields back to MatchRecord interface if needed
               opponent: data.player2Uid === 'AI' ? 'AI' : (data.player2Uid === firebaseUser.uid ? data.player1Uid : data.player2Uid),
               result: data.winnerUid === 'draw' ? 'draw' : (data.winnerUid === firebaseUser.uid ? 'win' : 'loss'),
@@ -1051,7 +1091,7 @@ export function AppScreens() {
 
     if (isAiTurn && !winner) {
       const timer = setTimeout(() => {
-        const move = getBestMove(board, currentPlayer as Player, aiDifficulty);
+        const move = getBestMove(board, currentPlayer as Player, aiDifficulty, ruleSet === 'renju', renjuRules);
         handleCellClick(move.row, move.col, true);
       }, 500);
       return () => clearTimeout(timer);
@@ -1209,6 +1249,16 @@ export function AppScreens() {
     if (isAiTurn && !isAiMove) return; // Prevent human from playing for AI
 
     setCoachAdvice(null); // Clear coach advice on move
+    setForbiddenReason(null);
+
+    if (ruleSet === 'renju' && currentPlayer === 'black') {
+      const reason = getForbiddenMoveReason(board, row, col, currentPlayer, renjuRules);
+      if (reason) {
+        setForbiddenReason(reason);
+        setTimeout(() => setForbiddenReason(null), 3000);
+        return; // Forbidden move
+      }
+    }
 
     const newBoard = board.map(r => [...r]);
     newBoard[row][col] = currentPlayer;
@@ -1220,7 +1270,7 @@ export function AppScreens() {
     // Snap keyboard cursor to the most recently played move
     setKeyboardCursor({ row, col });
 
-    const winLine = checkWin(newBoard, row, col, currentPlayer, ruleSet === 'renju');
+    const winLine = checkWin(newBoard, row, col, currentPlayer, ruleSet === 'renju', renjuRules.overline);
     if (winLine) {
       setWinner(currentPlayer);
       playSound('win');
@@ -1536,7 +1586,7 @@ export function AppScreens() {
        (startingPlayer === 'ai' && currentPlayer === 'black'));
        
     if (winner || isAiTurn) return;
-    const advice = getCoachAdvice(board, currentPlayer);
+    const advice = getCoachAdvice(board, currentPlayer, ruleSet === 'renju', renjuRules);
     setCoachAdvice(advice);
   };
 
@@ -1644,12 +1694,12 @@ export function AppScreens() {
               </motion.div>
             </div>
 
-            <div className="flex flex-col gap-4 w-full max-w-xs">
+            <div className="flex flex-col gap-4 w-full max-w-sm sm:max-w-md md:max-w-2xl px-4">
               {!showDifficultySelect ? (
-                <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full">
                   <button
                     onClick={() => setCurrentScreen('music')}
-                    className="flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-zinc-100 hover:bg-zinc-50 transition-all group"
+                    className="flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-zinc-100 hover:bg-zinc-50 transition-all group sm:col-span-2 md:col-span-1"
                   >
                     <div className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center text-white group-hover:rotate-12 transition-transform">
                       <Music size={20} />
@@ -1728,16 +1778,16 @@ export function AppScreens() {
                     className="flex items-center justify-center gap-3 bg-white text-zinc-900 py-4 px-6 rounded-2xl font-semibold hover:bg-zinc-50 transition-colors border border-zinc-200"
                   >
                     <HelpCircle size={20} />
-                    Aide & Support
+                    Support
                   </button>
                   <button
                     onClick={() => setCurrentScreen('privacy')}
                     className="flex items-center justify-center gap-3 bg-white text-zinc-900 py-4 px-6 rounded-2xl font-semibold hover:bg-zinc-50 transition-colors border border-zinc-200"
                   >
                     <ShieldCheck size={20} />
-                    Confidentialité
+                    Privacy
                   </button>
-                </>
+                </div>
               ) : showDifficultySelect ? (
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -1789,58 +1839,119 @@ export function AppScreens() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
-            className="absolute inset-0 flex flex-col p-4 md:p-8 overflow-y-auto custom-scrollbar"
+            className={`absolute inset-0 flex flex-col p-4 md:p-8 overflow-y-auto custom-scrollbar transition-colors duration-500 ${
+              uiStyle === 'zen' ? 'bg-[#f4f1ea] text-[#3d3a33]' : 
+              uiStyle === 'pixel' ? 'bg-black text-lime-400 font-mono uppercase' : 
+              uiStyle === 'cyberpunk' ? 'bg-[#0f0a1e] text-cyan-400 shadow-[inset_0_0_100px_rgba(147,51,234,0.1)]' :
+              uiStyle === 'monochrome' ? 'bg-white text-black font-serif' :
+              uiStyle === 'retro' ? 'bg-[#fdf6e3] text-[#586e75] font-serif' :
+              uiStyle === 'midnight' ? 'bg-[#020617] text-slate-100' :
+              uiStyle === 'nature' ? 'bg-[#f0f9ff] text-emerald-900' :
+              uiStyle === 'terminal' ? 'bg-black text-green-500 font-mono' :
+              uiStyle === 'bubblegum' ? 'bg-rose-50 text-rose-500 font-sans selection:bg-yellow-200' :
+              'bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-white'
+            }`}
           >
+            {/* Quick Switcher for UI & Skins */}
+            <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 p-1.5 backdrop-blur-md rounded-2xl border shadow-2xl scale-[0.85] sm:scale-100 max-w-[95vw] overflow-x-auto no-scrollbar ${
+              uiStyle === 'bubblegum' ? 'bg-white/80 border-rose-200' : 'bg-black/80 border-white/10'
+            }`}>
+              <div className={`flex gap-1 border-r pr-2 overflow-x-auto no-scrollbar max-w-[150px] sm:max-w-none shrink-0 ${uiStyle === 'bubblegum' ? 'border-rose-100' : 'border-white/10'}`}>
+                <button onClick={() => setUiStyle('modern')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'modern' ? 'bg-white text-black' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Modern UI"><Monitor size={16} /></button>
+                <button onClick={() => setUiStyle('zen')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'zen' ? 'bg-[#d2c9b1] text-[#4a4636]' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Zen UI"><Palette size={16} /></button>
+                <button onClick={() => setUiStyle('pixel')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'pixel' ? 'bg-yellow-400 text-black' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Pixel UI"><Grid size={16} /></button>
+                <button onClick={() => setUiStyle('cyberpunk')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'cyberpunk' ? 'bg-purple-600 text-white' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Cyberpunk UI"><Zap size={16} /></button>
+                <button onClick={() => setUiStyle('monochrome')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'monochrome' ? 'bg-black text-white font-bold' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Monochrome UI"><Contrast size={16} /></button>
+                <button onClick={() => setUiStyle('retro')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'retro' ? 'bg-orange-500 text-white' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Retro UI"><Clock size={16} /></button>
+                <button onClick={() => setUiStyle('midnight')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'midnight' ? 'bg-slate-800 text-blue-300' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Midnight UI"><Moon size={16} /></button>
+                <button onClick={() => setUiStyle('nature')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'nature' ? 'bg-emerald-600 text-white' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Nature UI"><Sun size={16} /></button>
+                <button onClick={() => setUiStyle('terminal')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'terminal' ? 'bg-green-900/50 text-green-400 border border-green-400/30' : uiStyle === 'bubblegum' ? 'text-rose-300 hover:text-rose-400' : 'text-zinc-500 hover:text-zinc-300'}`} title="Terminal UI"><Terminal size={16} /></button>
+                <button onClick={() => setUiStyle('bubblegum')} className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${uiStyle === 'bubblegum' ? 'bg-rose-400 text-white shadow-[0_0_10px_rgba(251,113,133,0.5)]' : 'text-zinc-500 hover:text-zinc-300'}`} title="Bubblegum UI"><Heart size={16} /></button>
+              </div>
+              <div className="flex gap-1 overflow-x-auto max-w-[120px] md:max-w-none no-scrollbar px-1">
+                {SKINS.slice(0, 8).map(s => (
+                  <button 
+                    key={s.id} 
+                    onClick={() => setSelectedSkinId(s.id)} 
+                    className={`w-6 h-6 rounded-full border-2 transition-all shrink-0 ${selectedSkinId === s.id ? (uiStyle === 'bubblegum' ? 'border-rose-400 scale-125' : 'border-white scale-110') : 'border-transparent opacity-50 hover:opacity-100'}`}
+                    style={{ backgroundColor: s.boardColor }}
+                    title={s.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {uiStyle === 'pixel' && (
+              <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.03] overflow-hidden">
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]" />
+              </div>
+            )}
+            
+            {uiStyle === 'zen' && (
+              <div className="fixed inset-0 pointer-events-none opacity-[0.02] mix-blend-multiply" style={{ backgroundImage: 'url(https://www.transparenttextures.com/patterns/natural-paper.png)' }} />
+            )}
+
+            {uiStyle === 'bubblegum' && (
+              <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden opacity-30">
+                <div className="absolute top-[10%] left-[5%] w-32 h-32 bg-yellow-200 rounded-full blur-[60px] animate-pulse" />
+                <div className="absolute bottom-[20%] right-[10%] w-48 h-48 bg-pink-300 rounded-full blur-[80px] animate-pulse [animation-delay:1s]" />
+                <div className="absolute top-[60%] left-[40%] w-24 h-24 bg-purple-200 rounded-full blur-[50px] animate-pulse [animation-delay:2s]" />
+              </div>
+            )}
+
+            {(uiStyle === 'terminal' || uiStyle === 'cyberpunk') && (
+              <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.05] overflow-hidden">
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,2px_100%]" />
+              </div>
+            )}
+            
+            {uiStyle === 'cyberpunk' && (
+              <div className="fixed inset-0 pointer-events-none z-[99] bg-[radial-gradient(circle_at_center,transparent_0%,rgba(147,51,234,0.05)_100%)]" />
+            )}
+
             {gameMode === 'online' ? (
               <div className="flex flex-col h-full max-w-3xl mx-auto w-full justify-between pb-8 shrink-0">
                 {/* Top: Opponent Info */}
-                <div className="flex items-center justify-between">
-                  <div className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-300 ${currentPlayer !== onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100'}`}>
-                    <div className="relative">
-                      <div className={`w-12 h-12 rounded-full bg-zinc-200 flex items-center justify-center text-xl font-bold text-zinc-500 uppercase overflow-hidden ${currentPlayer === onlinePlayerColor ? 'animate-idle-float' : ''}`}>
+                <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                  <div className={`flex items-center gap-3 md:gap-4 p-2 md:p-3 rounded-2xl transition-all duration-300 flex-1 min-w-[200px] ${
+                    uiStyle === 'pixel' ? (currentPlayer !== onlinePlayerColor ? 'bg-zinc-800 border-2 border-lime-400 scale-105' : 'opacity-40 grayscale') :
+                    uiStyle === 'zen' ? (currentPlayer !== onlinePlayerColor ? 'bg-[#e5e1d8] shadow-md scale-105 border border-[#d2c9b1]' : 'opacity-60 grayscale-[0.5]') :
+                    uiStyle === 'cyberpunk' ? (currentPlayer !== onlinePlayerColor ? 'bg-[#1e1b4b] border border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.3)] scale-105' : 'opacity-40 grayscale') :
+                    uiStyle === 'monochrome' ? (currentPlayer !== onlinePlayerColor ? 'bg-black text-white border border-white scale-105 shadow-md' : 'opacity-50 grayscale') :
+                    uiStyle === 'retro' ? (currentPlayer !== onlinePlayerColor ? 'bg-[#eee8d5] border-2 border-[#586e75] scale-105 shadow-md' : 'opacity-50 grayscale') :
+                    uiStyle === 'midnight' ? (currentPlayer !== onlinePlayerColor ? 'bg-slate-800 border border-slate-700 shadow-xl scale-105' : 'opacity-40') :
+                    uiStyle === 'nature' ? (currentPlayer !== onlinePlayerColor ? 'bg-emerald-100 border border-emerald-200 scale-105' : 'opacity-50') :
+                    uiStyle === 'terminal' ? (currentPlayer !== onlinePlayerColor ? 'bg-black border-2 border-green-500 scale-105 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'opacity-30') :
+                    uiStyle === 'bubblegum' ? (currentPlayer !== onlinePlayerColor ? 'bg-white border-4 border-rose-300 scale-105 shadow-xl shadow-rose-200/50' : 'opacity-40 scale-95 blur-[0.5px]') :
+                    (currentPlayer !== onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100')
+                  }`}>
+                    <div className="relative shrink-0">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full bg-zinc-200 flex items-center justify-center text-lg md:text-xl font-bold text-zinc-500 uppercase overflow-hidden ${currentPlayer === onlinePlayerColor ? 'animate-idle-float' : ''}`}>
                         {opponentAvatarUrl ? (
                           <img src={opponentAvatarUrl} alt="Opponent" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
                           opponentUserId ? opponentUserId.substring(0, 2) : 'O'
                         )}
                       </div>
-                      <div className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-[#f5f5f5] rounded-full ${
+                      <div className={`absolute -bottom-1 -right-1 w-3 h-3 md:w-4 md:h-4 border-2 border-[#f5f5f5] rounded-full ${
                         onlineOpponentLeft ? 'bg-rose-500' : (isConnected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse')
                       }`} />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-zinc-900">{opponentName || (opponentUserId ? `Player ${opponentUserId.substring(0, 4)}` : 'Opponent')}</h3>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+                        <h3 className="font-bold text-zinc-900 truncate max-w-[100px] sm:max-w-none text-sm md:text-base">{opponentName || (opponentUserId ? `Player ${opponentUserId.substring(0, 4)}` : 'Opponent')}</h3>
                         {opponentElo !== null && (
-                          <span className="px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-bold rounded-md">
+                          <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-600 text-[10px] md:text-xs font-bold rounded-md whitespace-nowrap">
                             {opponentElo} ELO
                           </span>
                         )}
-                        <div className="flex items-center gap-1.5 ml-1">
-                          <div className={`w-2 h-2 rounded-full ${
-                            onlineOpponentLeft ? 'bg-rose-500' : (isConnected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse')
-                          }`} />
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                            onlineOpponentLeft ? 'text-rose-500' : (isConnected ? 'text-emerald-500' : 'text-amber-500')
-                          }`}>
-                            {onlineOpponentLeft ? 'Disconnected' : (isConnected ? 'Connected' : 'Reconnecting')}
-                          </span>
-                        </div>
                       </div>
-                      <div className="text-sm text-zinc-500 flex items-center gap-2 mt-0.5 font-medium">
-                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${onlinePlayerColor === 'black' ? 'bg-white border border-zinc-300' : 'bg-zinc-900'}`} />
+                      <div className="text-[10px] md:text-sm text-zinc-500 flex items-center gap-1 md:gap-2 mt-0.5 font-medium whitespace-nowrap">
+                        <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full flex-shrink-0 ${onlinePlayerColor === 'black' ? 'bg-white border border-zinc-300' : 'bg-zinc-900'}`} />
                         <span className="flex-shrink-0">{onlinePlayerColor === 'black' ? 'White' : 'Black'}</span>
                         {currentPlayer !== onlinePlayerColor && !winner && timeLimit > 0 && (
-                          <div className="flex items-center gap-2 ml-2">
-                            <div className="w-16 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
-                              <motion.div 
-                                className={`h-full ${timeLeft <= 10 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                                initial={{ width: "100%" }}
-                                animate={{ width: `${(timeLeft / timeLimit) * 100}%` }}
-                                transition={{ duration: 1, ease: 'linear' }}
-                              />
-                            </div>
-                            <span className={`font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-zinc-500'}`}>
+                          <div className="flex items-center gap-1 md:gap-2 ml-1 md:ml-2">
+                             <span className={`font-mono text-[10px] md:text-sm ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-zinc-500'}`}>
                               00:{timeLeft.toString().padStart(2, '0')}
                             </span>
                           </div>
@@ -1848,35 +1959,35 @@ export function AppScreens() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 md:gap-4 shrink-0">
                     {!winner && (
                       <button 
                         onClick={() => setShowForfeitConfirm(true)} 
-                        className="px-4 py-2 bg-rose-100 text-rose-600 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-rose-200 transition-colors"
+                        className="px-3 py-1.5 md:px-4 md:py-2 bg-rose-100 text-rose-600 rounded-full font-bold text-[10px] md:text-xs uppercase tracking-widest hover:bg-rose-200 transition-colors"
                       >
                         Forfeit
                       </button>
                     )}
                     <button 
                       onClick={() => setShowChat(!showChat)} 
-                      className={`p-2 transition-all rounded-full shadow-sm relative ${showChat ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-400 hover:text-zinc-700'}`}
+                      className={`p-1.5 md:p-2 transition-all rounded-full shadow-sm relative ${showChat ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-400 hover:text-zinc-700'}`}
                     >
-                      <MessageSquare size={24} />
+                      <MessageSquare size={20} />
                       {chatMessages.length > 0 && !showChat && (
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full border-2 border-white" />
                       )}
                     </button>
-                    <button onClick={() => setShowMusicModal(true)} className="text-zinc-400 hover:text-zinc-700 p-2 transition-colors bg-white rounded-full shadow-sm">
-                      <Music size={24} />
+                    <button onClick={() => setShowMusicModal(true)} className="text-zinc-400 hover:text-zinc-700 p-1.5 md:p-2 transition-colors bg-white rounded-full shadow-sm">
+                      <Music size={20} />
                     </button>
-                    <button onClick={() => leaveOnlineMatch()} className="text-zinc-400 hover:text-zinc-700 p-2 transition-colors bg-white rounded-full shadow-sm">
-                      <X size={24} />
+                    <button onClick={() => leaveOnlineMatch()} className="text-zinc-400 hover:text-zinc-700 p-1.5 md:p-2 transition-colors bg-white rounded-full shadow-sm">
+                      <X size={20} />
                     </button>
                   </div>
                 </div>
 
                 {/* Center: Board */}
-                <main className="flex-1 flex flex-col items-center justify-center relative my-8">
+                <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
                   <AnimatePresence>
                     {showMusicModal && (
                       <motion.div
@@ -1897,15 +2008,35 @@ export function AppScreens() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  <GomokuBoard
-                    board={board}
-                    onCellClick={handleCellClick}
-                    winningLine={winningLine}
-                    lastMove={lastMove}
-                    keyboardCursor={keyboardCursor}
-                    skin={currentSkin}
-                    threats={threats}
-                  />
+                  <div className="w-full max-w-[min(90vw,70vh)] aspect-square relative">
+                    <GomokuBoard
+                      board={board}
+                      onCellClick={handleCellClick}
+                      winningLine={winningLine}
+                      lastMove={lastMove}
+                      keyboardCursor={keyboardCursor}
+                      skin={currentSkin}
+                      threats={threats}
+                    />
+                  </div>
+
+                  <AnimatePresence>
+                    {forbiddenReason && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20, x: '-50%' }}
+                        animate={{ opacity: 1, y: 0, x: '-50%' }}
+                        exit={{ opacity: 0, y: 20, x: '-50%' }}
+                        className="absolute bottom-4 md:bottom-8 left-1/2 bg-rose-500 text-white p-4 rounded-2xl shadow-xl z-20 flex items-center gap-3 whitespace-nowrap"
+                      >
+                        <X size={20} className="bg-rose-600 p-1 rounded-full shrink-0" />
+                        <div className="text-sm font-bold">
+                          {forbiddenReason === 'overline' && 'Forbidden: Overline (6+ stones)'}
+                          {forbiddenReason === 'double-three' && 'Forbidden: Double Three'}
+                          {forbiddenReason === 'double-four' && 'Forbidden: Double Four'}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <AnimatePresence>
                     {threats.length > 0 && !winner && (
@@ -1937,13 +2068,26 @@ export function AppScreens() {
                         initial={{ opacity: 0, x: 20, scale: 0.95 }}
                         animate={{ opacity: 1, x: 0, scale: 1 }}
                         exit={{ opacity: 0, x: 20, scale: 0.95 }}
-                        className="absolute right-0 top-0 bottom-0 w-full max-w-[300px] bg-white/95 backdrop-blur-md shadow-2xl border-l border-zinc-100 z-40 flex flex-col rounded-l-3xl overflow-hidden"
+                        className="absolute right-0 top-0 bottom-0 w-[85%] sm:w-full sm:max-w-[300px] bg-white/95 backdrop-blur-md shadow-2xl border-l border-zinc-100 z-50 flex flex-col rounded-l-3xl overflow-hidden"
                       >
-                        <div className="p-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
-                          <h3 className="font-bold text-zinc-900 flex items-center gap-2">
-                            <MessageSquare size={18} className="text-zinc-400" />
-                            Game Chat
-                          </h3>
+                  <div className={`p-4 border-b flex items-center justify-between ${
+                    uiStyle === 'zen' ? 'border-[#e5e1d8] bg-[#e5e1d8]/50' : 
+                    uiStyle === 'pixel' ? 'border-lime-500/30 bg-lime-500/5' : 
+                    uiStyle === 'bubblegum' ? 'border-rose-100 bg-rose-50/80' :
+                    'border-zinc-100 bg-zinc-50/50'
+                  }`}>
+                    <h3 className={`font-bold flex items-center gap-2 ${
+                      uiStyle === 'pixel' ? 'text-lime-400' : 
+                      uiStyle === 'bubblegum' ? 'text-rose-500' :
+                      'text-zinc-900'
+                    }`}>
+                      <MessageSquare size={18} className={
+                        uiStyle === 'pixel' ? 'text-lime-500' : 
+                        uiStyle === 'bubblegum' ? 'text-rose-400' :
+                        'text-zinc-400'
+                      } />
+                      Game Chat
+                    </h3>
                           <button onClick={() => setShowChat(false)} className="p-1 hover:bg-zinc-200 rounded-full transition-colors">
                             <X size={18} />
                           </button>
@@ -2017,39 +2161,31 @@ export function AppScreens() {
 
                 {/* Bottom: Player Info */}
                 <div className="flex items-center justify-between">
-                  <div className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-300 ${currentPlayer === onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100'}`}>
-                    <div className="relative">
-                      <div className={`w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-xl font-bold text-white uppercase overflow-hidden ${currentPlayer !== onlinePlayerColor ? 'animate-idle-float' : ''}`}>
+                  <div className={`flex items-center gap-3 md:gap-4 p-2 md:p-3 rounded-2xl transition-all duration-300 ${currentPlayer === onlinePlayerColor ? 'bg-white shadow-lg ring-2 ring-emerald-500/50 scale-105' : 'opacity-60 scale-100'}`}>
+                    <div className="relative shrink-0">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full bg-zinc-900 flex items-center justify-center text-lg md:text-xl font-bold text-white uppercase overflow-hidden ${currentPlayer !== onlinePlayerColor ? 'animate-idle-float' : ''}`}>
                         {user?.photoURL ? (
                           <img src={user.photoURL} alt="Me" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         ) : (
                           <img src={currentCharacter.avatar} alt={currentCharacter.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         )}
                       </div>
-                      <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color || '#6b7280' }} />
-                      <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#f5f5f5] rounded-full" />
+                      <div className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 rounded-full border border-black/20" style={{ backgroundColor: COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color || '#6b7280' }} />
+                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-emerald-500 border-2 border-[#f5f5f5] rounded-full" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-zinc-900">{user?.displayName || currentCharacter.name}</h3>
-                        <span className="px-2 py-0.5 bg-zinc-100 text-zinc-600 text-xs font-bold rounded-md">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+                        <h3 className="font-bold text-zinc-900 truncate max-w-[100px] sm:max-w-none text-sm md:text-base">{user?.displayName || currentCharacter.name}</h3>
+                        <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-600 text-[10px] md:text-xs font-bold rounded-md whitespace-nowrap">
                           {playerElo} ELO
                         </span>
                       </div>
-                      <div className="text-sm text-zinc-500 flex items-center gap-2 mt-0.5 font-medium">
-                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${onlinePlayerColor === 'black' ? 'bg-zinc-900' : 'bg-white border border-zinc-300'}`} />
+                      <div className="text-[10px] md:text-sm text-zinc-500 flex items-center gap-1 md:gap-2 mt-0.5 font-medium whitespace-nowrap">
+                        <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full flex-shrink-0 ${onlinePlayerColor === 'black' ? 'bg-zinc-900' : 'bg-white border border-zinc-300'}`} />
                         <span className="flex-shrink-0">{onlinePlayerColor === 'black' ? 'Black' : 'White'}</span>
                         {currentPlayer === onlinePlayerColor && !winner && timeLimit > 0 && (
-                          <div className="flex items-center gap-2 ml-2">
-                            <div className="w-16 h-1.5 bg-zinc-200 rounded-full overflow-hidden flex-shrink-0">
-                              <motion.div 
-                                className={`h-full ${timeLeft <= 10 ? 'bg-red-500' : 'bg-emerald-500'}`}
-                                initial={{ width: "100%" }}
-                                animate={{ width: `${(timeLeft / timeLimit) * 100}%` }}
-                                transition={{ duration: 1, ease: 'linear' }}
-                              />
-                            </div>
-                            <span className={`font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
+                          <div className="flex items-center gap-1 md:gap-2 ml-1 md:ml-2">
+                            <span className={`font-mono text-[10px] md:text-sm ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
                               00:{timeLeft.toString().padStart(2, '0')}
                             </span>
                           </div>
@@ -2061,40 +2197,66 @@ export function AppScreens() {
               </div>
             ) : (
               <div className="flex flex-col h-full max-w-3xl mx-auto w-full shrink-0">
-                <header className="flex items-center justify-between mb-8 shrink-0">
-              <button
-                onClick={() => gameMode === 'online' ? leaveOnlineMatch() : setCurrentScreen('home')}
-                className="p-2 hover:bg-zinc-200 rounded-full transition-colors"
-              >
-                <ChevronLeft size={24} />
-              </button>
-              <div className="flex items-center gap-4">
-                <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${currentPlayer === 'black' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60'}`}>
-                  <div className="relative">
-                    <img src={gameMode === 'pve' && startingPlayer === 'ai' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="Black Player" className={`w-5 h-5 rounded-full object-cover ${currentPlayer !== 'black' ? 'animate-idle-float' : ''}`} referrerPolicy="no-referrer" />
-                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'ai' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
+                <header className={`flex items-center justify-between mb-4 md:mb-8 shrink-0 flex-wrap gap-4 ${uiStyle === 'pixel' ? 'border-b-4 border-white pb-4' : ''}`}>
+                  <button
+                    onClick={() => gameMode === 'online' ? leaveOnlineMatch() : setCurrentScreen('home')}
+                    className={`p-2 rounded-full transition-colors ${uiStyle === 'pixel' ? 'bg-white text-black' : 'hover:bg-zinc-200'}`}
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <div className="flex items-center gap-2 md:gap-4 flex-wrap justify-center">
+                    <div className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-bold flex items-center gap-2 transition-all duration-300 ${
+                      uiStyle === 'pixel' ? (currentPlayer === 'black' ? 'bg-lime-400 text-black shadow-[4px_4px_0px_#fff] scale-105' : 'bg-zinc-800 text-zinc-500 opacity-60') :
+                      uiStyle === 'zen' ? (currentPlayer === 'black' ? 'bg-[#4a4636] text-[#e5e1d8] shadow-md scale-105' : 'bg-[#e5e1d8] text-[#4a4636] opacity-60') :
+                      uiStyle === 'cyberpunk' ? (currentPlayer === 'black' ? 'bg-purple-600 text-cyan-400 shadow-[0_0_15px_rgba(168,85,247,0.5)] scale-105' : 'bg-zinc-900 text-zinc-600 opacity-60') :
+                      uiStyle === 'monochrome' ? (currentPlayer === 'black' ? 'bg-black text-white scale-105 border border-white' : 'bg-white text-black border border-black opacity-60') :
+                      uiStyle === 'retro' ? (currentPlayer === 'black' ? 'bg-[#586e75] text-[#fdf6e3] scale-105 shadow-md' : 'bg-[#eee8d5] text-[#586e75] opacity-60') :
+                      uiStyle === 'midnight' ? (currentPlayer === 'black' ? 'bg-slate-100 text-black scale-105 shadow-lg' : 'bg-slate-800 text-slate-500 opacity-60') :
+                      uiStyle === 'nature' ? (currentPlayer === 'black' ? 'bg-emerald-900 text-emerald-50 scale-105' : 'bg-emerald-100 text-emerald-900 opacity-60') :
+                      uiStyle === 'terminal' ? (currentPlayer === 'black' ? 'bg-green-500 text-black scale-105' : 'bg-black text-green-900 border border-green-900 opacity-60') :
+                      uiStyle === 'bubblegum' ? (currentPlayer === 'black' ? 'bg-rose-500 text-white shadow-[0_8px_15px_rgba(244,63,94,0.3)] scale-110' : 'bg-rose-100 text-rose-300 opacity-60 scale-95') :
+                      (currentPlayer === 'black' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60')
+                    }`}>
+                      <div className="relative">
+                        <img src={gameMode === 'pve' && startingPlayer === 'ai' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="Black Player" className={`w-5 h-5 rounded-full object-cover ${currentPlayer !== 'black' ? 'animate-idle-float' : ''}`} referrerPolicy="no-referrer" />
+                        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'ai' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
+                      </div>
+                      <span className={uiStyle === 'pixel' ? 'tracking-widest' : ''}>
+                        {gameMode === 'pve' ? (startingPlayer === 'ai' ? `AI (${aiDifficulty})` : (user?.displayName || 'You')) : (gameMode === 'pvp' ? 'Player 1' : (user?.displayName || 'You'))}
+                      </span>
+                      {(gameMode === 'pve' || gameMode === 'pvp') && currentPlayer === 'black' && !winner && timeLimit > 0 && (
+                        <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : (uiStyle === 'bubblegum' ? 'text-white/80' : uiStyle === 'pixel' ? 'text-black' : uiStyle === 'zen' ? 'text-[#e5e1d8]' : 'text-emerald-500')}`}>
+                          00:{timeLeft.toString().padStart(2, '0')}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${
+                       uiStyle === 'pixel' ? (currentPlayer === 'white' ? 'bg-yellow-400 text-black shadow-[4px_4px_0px_#fff] scale-105' : 'bg-zinc-800 text-zinc-500 opacity-60') :
+                       uiStyle === 'zen' ? (currentPlayer === 'white' ? 'bg-[#4a4636] text-[#e5e1d8] shadow-md scale-105' : 'bg-[#e5e1d8] text-[#4a4636] opacity-60') :
+                       uiStyle === 'cyberpunk' ? (currentPlayer === 'white' ? 'bg-purple-600 text-cyan-400 shadow-[0_0_15px_rgba(168,85,247,0.5)] scale-105' : 'bg-zinc-900 text-zinc-600 opacity-60') :
+                       uiStyle === 'monochrome' ? (currentPlayer === 'white' ? 'bg-black text-white scale-105 border border-white' : 'bg-white text-black border border-black opacity-60') :
+                       uiStyle === 'retro' ? (currentPlayer === 'white' ? 'bg-[#586e75] text-[#fdf6e3] scale-105 shadow-md' : 'bg-[#eee8d5] text-[#586e75] opacity-60') :
+                       uiStyle === 'midnight' ? (currentPlayer === 'white' ? 'bg-slate-100 text-black scale-105 shadow-lg' : 'bg-slate-800 text-slate-500 opacity-60') :
+                       uiStyle === 'nature' ? (currentPlayer === 'white' ? 'bg-emerald-900 text-emerald-50 scale-105' : 'bg-emerald-100 text-emerald-900 opacity-60') :
+                       uiStyle === 'terminal' ? (currentPlayer === 'white' ? 'bg-green-500 text-black scale-105' : 'bg-black text-green-900 border border-green-900 opacity-60') :
+                       uiStyle === 'bubblegum' ? (currentPlayer === 'white' ? 'bg-rose-500 text-white shadow-[0_8px_15px_rgba(244,63,94,0.3)] scale-110' : 'bg-rose-100 text-rose-300 opacity-60 scale-95') :
+                       (currentPlayer === 'white' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60')
+                    }`}>
+                      <div className="relative">
+                        <img src={gameMode === 'pve' && startingPlayer === 'human' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="White Player" className={`w-5 h-5 rounded-full object-cover ${currentPlayer !== 'white' ? 'animate-idle-float' : ''}`} referrerPolicy="no-referrer" />
+                        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'human' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
+                      </div>
+                      <span className={uiStyle === 'pixel' ? 'tracking-widest' : ''}>
+                        {gameMode === 'pve' ? (startingPlayer === 'human' ? `AI (${aiDifficulty})` : (user?.displayName || 'You')) : (gameMode === 'pvp' ? 'Player 2' : (user?.displayName || 'You'))}
+                      </span>
+                      {(gameMode === 'pve' || gameMode === 'pvp') && currentPlayer === 'white' && !winner && timeLimit > 0 && (
+                        <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : (uiStyle === 'bubblegum' ? 'text-white/80' : uiStyle === 'pixel' ? 'text-black' : uiStyle === 'zen' ? 'text-[#e5e1d8]' : 'text-emerald-500')}`}>
+                          00:{timeLeft.toString().padStart(2, '0')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {gameMode === 'pve' && startingPlayer === 'ai' ? `${CHARACTERS[1].name} (AI)` : (gameMode === 'pvp' ? 'Player 1' : (user?.displayName || currentCharacter.name))}
-                  {(gameMode === 'pve' || gameMode === 'pvp') && currentPlayer === 'black' && !winner && timeLimit > 0 && (
-                    <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
-                      00:{timeLeft.toString().padStart(2, '0')}
-                    </span>
-                  )}
-                </div>
-                <div className={`px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 transition-all duration-300 ${currentPlayer === 'white' ? 'bg-zinc-900 text-white shadow-lg ring-2 ring-zinc-900/20 scale-105' : 'bg-zinc-200 text-zinc-900 opacity-60'}`}>
-                  <div className="relative">
-                    <img src={gameMode === 'pve' && startingPlayer === 'human' ? CHARACTERS[1].avatar : currentCharacter.avatar} alt="White Player" className={`w-5 h-5 rounded-full object-cover ${currentPlayer !== 'white' ? 'animate-idle-float' : ''}`} referrerPolicy="no-referrer" />
-                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-black/20" style={{ backgroundColor: (gameMode === 'pve' && startingPlayer === 'human' ? (COLOR_MAP[CHARACTERS[1].color?.toLowerCase() || ''] || CHARACTERS[1].color) : (COLOR_MAP[currentCharacter.color?.toLowerCase() || ''] || currentCharacter.color)) || '#6b7280' }} />
-                  </div>
-                  {gameMode === 'pve' && startingPlayer === 'human' ? `${CHARACTERS[1].name} (AI)` : (gameMode === 'pvp' ? 'Player 2' : (user?.displayName || currentCharacter.name))}
-                  {(gameMode === 'pve' || gameMode === 'pvp') && currentPlayer === 'white' && !winner && timeLimit > 0 && (
-                    <span className={`ml-2 font-mono ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-emerald-500'}`}>
-                      00:{timeLeft.toString().padStart(2, '0')}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-end">
                 <button 
                   onClick={() => setShowMusicModal(true)} 
                   className="p-2 hover:bg-zinc-100 text-zinc-600 rounded-full transition-colors"
@@ -2105,36 +2267,45 @@ export function AppScreens() {
                 {(!winner && gameMode !== 'online' && !(gameMode === 'pve' && ((startingPlayer === 'human' && currentPlayer === 'white') || (startingPlayer === 'ai' && currentPlayer === 'black')))) && (
                   <button 
                     onClick={askCoach} 
-                    className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-full font-semibold hover:bg-emerald-200 transition-colors text-sm flex items-center gap-2"
-                    title="Ask Coach"
+                    className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold transition-all shadow-lg text-xs md:text-sm flex items-center gap-2 active:scale-95 ${
+                      uiStyle === 'bubblegum' ? 'bg-rose-400 text-white hover:bg-rose-500 shadow-rose-200' : 
+                      uiStyle === 'pixel' ? 'bg-lime-400 text-black border-2 border-white' :
+                      'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-200'
+                    }`}
+                    title="Get a hint from the AI"
                   >
-                    <Lightbulb size={16} />
-                    Coach
+                    <Lightbulb size={16} fill={uiStyle === 'pixel' ? 'black' : 'white'} />
+                    <span className="hidden sm:inline">Hint</span>
                   </button>
                 )}
                 {(!winner && gameMode !== 'online' && moveHistory.length > 0 && !(gameMode === 'pve' && ((startingPlayer === 'human' && currentPlayer === 'white') || (startingPlayer === 'ai' && currentPlayer === 'black')))) && (
                   <button 
                     onClick={handleUndo} 
-                    className="px-4 py-2 bg-amber-100 text-amber-700 rounded-full font-semibold hover:bg-amber-200 transition-colors text-sm flex items-center gap-2"
+                    className={`px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold transition-all shadow-lg text-xs md:text-sm flex items-center gap-2 active:scale-95 ${
+                      uiStyle === 'bubblegum' ? 'bg-rose-100 text-rose-500 hover:bg-rose-200 shadow-rose-100 border border-rose-200' :
+                      uiStyle === 'pixel' ? 'bg-zinc-800 text-white border-2 border-white' :
+                      'bg-amber-100 text-amber-700 hover:bg-amber-200 shadow-amber-50'
+                    }`}
                     title="Undo Move"
                   >
                     <Undo2 size={16} />
-                    Undo
+                    <span className="hidden sm:inline">Undo</span>
                   </button>
                 )}
                 {(!winner && gameMode !== 'online' && !(gameMode === 'pve' && ((startingPlayer === 'human' && currentPlayer === 'white') || (startingPlayer === 'ai' && currentPlayer === 'black')))) && (
                   <button 
                     onClick={() => setShowForfeitConfirm(true)} 
-                    className="px-4 py-2 bg-rose-100 text-rose-600 rounded-full font-semibold hover:bg-rose-200 transition-colors text-sm flex items-center gap-2"
+                    className="px-3 py-1.5 md:px-4 md:py-2 bg-rose-100 text-rose-600 rounded-full font-semibold hover:bg-rose-200 transition-colors text-xs md:text-sm flex items-center gap-2"
                     title="Forfeit Match"
                   >
-                    Forfeit
+                    <span className="hidden sm:inline">Forfeit</span>
+                    <LogOut size={16} className="sm:hidden" />
                   </button>
                 )}
                 {gameMode !== 'online' && (
                   <button 
                     onClick={() => setShowNewGameModal(true)} 
-                    className="px-4 py-2 bg-zinc-900 text-white rounded-full font-semibold hover:bg-zinc-800 transition-colors text-sm"
+                    className="px-3 py-1.5 md:px-4 md:py-2 bg-zinc-900 text-white rounded-full font-semibold hover:bg-zinc-800 transition-colors text-xs md:text-sm"
                   >
                     New Game
                   </button>
@@ -2142,37 +2313,39 @@ export function AppScreens() {
               </div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center relative">
-              <AnimatePresence>
-                {showMusicModal && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
-                  >
-                    <div className="w-full max-w-md h-[500px] relative">
-                      <button 
-                        onClick={() => setShowMusicModal(false)}
-                        className="absolute -top-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center z-10 shadow-lg hover:scale-110 transition-transform"
-                      >
-                        <X size={16} />
-                      </button>
-                      <MusicPlayer />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <GomokuBoard
-                board={board}
-                onCellClick={handleCellClick}
-                winningLine={winningLine}
-                lastMove={lastMove}
-                coachMove={coachAdvice ? { row: coachAdvice.row, col: coachAdvice.col } : null}
-                keyboardCursor={keyboardCursor}
-                skin={currentSkin}
-                threats={threats}
-              />
+              <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
+                <AnimatePresence>
+                  {showMusicModal && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
+                    >
+                      <div className="w-full max-w-md h-[500px] relative">
+                        <button 
+                          onClick={() => setShowMusicModal(false)}
+                          className="absolute -top-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center z-10 shadow-lg hover:scale-110 transition-transform"
+                        >
+                          <X size={16} />
+                        </button>
+                        <MusicPlayer />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div className="w-full max-w-[min(90vw,70vh)] aspect-square relative">
+                  <GomokuBoard
+                    board={board}
+                    onCellClick={handleCellClick}
+                    winningLine={winningLine}
+                    lastMove={lastMove}
+                    coachMove={coachAdvice ? { row: coachAdvice.row, col: coachAdvice.col } : null}
+                    keyboardCursor={keyboardCursor}
+                    skin={currentSkin}
+                    threats={threats}
+                  />
+                </div>
 
               <AnimatePresence>
                 {threats.length > 0 && !winner && (
@@ -2210,7 +2383,7 @@ export function AppScreens() {
                         <Lightbulb size={24} />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-bold text-lg mb-1">Coach's Advice</h3>
+                        <h3 className="font-bold text-lg mb-1">Strategic Hint</h3>
                         <p className="text-zinc-600 text-sm mb-4 leading-relaxed">
                           {coachAdvice.explanation}
                         </p>
@@ -2244,9 +2417,27 @@ export function AppScreens() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white px-8 py-6 rounded-3xl shadow-2xl border border-zinc-100 text-center min-w-[300px] z-20"
+                    className={`absolute bottom-8 left-1/2 -translate-x-1/2 px-8 py-6 rounded-[3rem] shadow-2xl border text-center min-w-[300px] z-[70] ${
+                      uiStyle === 'pixel' ? 'bg-black border-lime-400 shadow-[8px_8px_0px_#fff]' :
+                      uiStyle === 'zen' ? 'bg-[#e5e1d8] border-[#4a4636] italic' :
+                      uiStyle === 'cyberpunk' ? 'bg-[#0f0a1e] border-cyan-500 shadow-[0_0_30px_rgba(34,211,238,0.5)]' :
+                      uiStyle === 'monochrome' ? 'bg-black text-white border-white border-2' :
+                      uiStyle === 'retro' ? (currentPlayer !== onlinePlayerColor ? 'bg-[#eee8d5] border-2 border-[#586e75] scale-105 shadow-md' : 'opacity-50 grayscale') :
+                      uiStyle === 'midnight' ? 'bg-slate-900 border-slate-700 shadow-2xl' :
+                      uiStyle === 'nature' ? 'bg-emerald-50 border-emerald-200' :
+                      uiStyle === 'terminal' ? 'bg-black border-green-500 border-2' :
+                      uiStyle === 'bubblegum' ? 'bg-white border-8 border-rose-200 shadow-[0_20px_50px_rgba(251,113,133,0.3)] animate-bounce-slow' :
+                      'bg-white border-zinc-100'
+                    }`}
                   >
-                    <h2 className="text-3xl font-black mb-2">
+                    <h2 className={`text-4xl font-black mb-2 ${
+                      uiStyle === 'pixel' ? 'text-yellow-400' : 
+                      uiStyle === 'zen' ? 'text-[#4a4636]' : 
+                      uiStyle === 'cyberpunk' ? 'text-fuchsia-500 tracking-tighter uppercase' :
+                      uiStyle === 'terminal' ? 'text-green-500' :
+                      uiStyle === 'bubblegum' ? 'text-rose-500 drop-shadow-sm' :
+                      'text-zinc-900'
+                    }`}>
                       {winner === 'draw' ? 'Draw!' : `${winner === 'black' ? 'Black' : 'White'} Wins!`}
                     </h2>
                     <p className="text-zinc-500 mb-2">
@@ -2475,7 +2666,7 @@ export function AppScreens() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
                 <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Matches</p>
                 <p className="text-3xl font-black">{matchHistory.length}</p>
@@ -2528,7 +2719,7 @@ export function AppScreens() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
               <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-zinc-100">
                 <h3 className="text-lg font-bold mb-6">Match Distribution</h3>
                 <div className="h-48 w-full">
@@ -2816,18 +3007,20 @@ export function AppScreens() {
               </div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center relative">
-              <GomokuBoard
-                board={replayBoard}
-                onCellClick={() => {}}
-                winningLine={
-                  replayMoveIndex === replayMatch.moves.length && replayMatch.winner !== 'draw' && replayMatch.moves.length > 0
-                    ? checkWin(replayBoard, replayMatch.moves[replayMatch.moves.length - 1].row, replayMatch.moves[replayMatch.moves.length - 1].col, replayMatch.moves[replayMatch.moves.length - 1].player, false)
-                    : null
-                }
-                lastMove={replayMoveIndex > 0 ? replayMatch.moves[replayMoveIndex - 1] : null}
-                skin={allSkins.find(s => s.id === (replayMatch as any).selectedSkin) || SKINS[0]}
-              />
+            <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
+              <div className="w-full max-w-[min(90vw,70vh)] aspect-square relative">
+                <GomokuBoard
+                  board={replayBoard}
+                  onCellClick={() => {}}
+                  winningLine={
+                    replayMoveIndex === replayMatch.moves.length && replayMatch.winner !== 'draw' && replayMatch.moves.length > 0
+                      ? checkWin(replayBoard, replayMatch.moves[replayMatch.moves.length - 1].row, replayMatch.moves[replayMatch.moves.length - 1].col, replayMatch.moves[replayMatch.moves.length - 1].player, false)
+                      : null
+                  }
+                  lastMove={replayMoveIndex > 0 ? replayMatch.moves[replayMoveIndex - 1] : null}
+                  skin={allSkins.find(s => s.id === (replayMatch as any).selectedSkin) || SKINS[0]}
+                />
+              </div>
 
               <div className="mt-8 w-full max-w-md bg-white p-6 rounded-3xl shadow-xl border border-zinc-100">
                 <div className="flex justify-between items-center mb-4">
@@ -3156,7 +3349,64 @@ export function AppScreens() {
               ) : (
                 <>
                   <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
-                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">Matchmaking</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider">Matchmaking Settings</h3>
+                      <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                        <ShieldCheck size={14} />
+                        <span>Connected</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-zinc-700 flex items-center gap-2">
+                            <Globe size={16} className="text-zinc-400" />
+                            Matchmaking Region
+                          </label>
+                          <button
+                            onClick={handleGeolocate}
+                            disabled={isLocating}
+                            className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 flex items-center gap-1 transition-colors disabled:opacity-50"
+                          >
+                            {isLocating ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                            {isLocating ? 'Detecting...' : 'Use My Location'}
+                          </button>
+                        </div>
+                        
+                        <div className="relative">
+                          <select
+                            value={selectedRegion}
+                            onChange={(e) => setSelectedRegion(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-4 pr-10 py-3 text-base text-zinc-700 outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100 transition-all appearance-none"
+                          >
+                            <option value="auto">Automatic (Best Ping)</option>
+                            <option value="America/New_York">North America (East)</option>
+                            <option value="America/Los_Angeles">North America (West)</option>
+                            <option value="Europe/Paris">Europe (West)</option>
+                            <option value="Europe/London">Europe (UK)</option>
+                            <option value="Asia/Tokyo">Asia (Japan)</option>
+                            <option value="Asia/Seoul">Asia (Korea)</option>
+                            <option value="America/Sao_Paulo">South America (Brazil)</option>
+                            <option value="Australia/Sydney">Oceania (Australia)</option>
+                          </select>
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
+                            <ChevronRight size={18} className="rotate-90" />
+                          </div>
+                        </div>
+                        
+                        {locationName && (
+                          <p className="text-[10px] text-zinc-400 mt-2 flex items-center gap-1 px-1">
+                            <Info size={10} />
+                            Detected: <span className="text-zinc-600 font-medium">{locationName}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">Quick Play</h3>
                     <div className="space-y-3">
                       <button
                         onClick={() => {
@@ -3228,7 +3478,7 @@ export function AppScreens() {
                         <button
                           onClick={() => {
                             if (joinRoomInput) {
-                              getSocket().emit('joinPrivateRoom', { roomId: joinRoomInput, userId: user?.uid });
+                               getSocket().emit('joinPrivateRoom', { roomId: joinRoomInput, userId: user?.uid });
                             }
                           }}
                           className="bg-zinc-900 text-white px-6 rounded-2xl font-semibold hover:bg-zinc-800 disabled:opacity-50 transition-colors"
@@ -3236,48 +3486,6 @@ export function AppScreens() {
                         >
                           Join
                         </button>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm">
-                    <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">Settings</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-700 mb-2">Server Region</label>
-                        <select
-                          value={selectedRegion}
-                          onChange={(e) => setSelectedRegion(e.target.value)}
-                          className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-base text-zinc-700 outline-none focus:border-zinc-400 transition-colors"
-                        >
-                          <option value="auto">Auto (Best Ping)</option>
-                          <option value="America/New_York">North America</option>
-                          <option value="Europe/Paris">Europe</option>
-                          <option value="Asia/Tokyo">Asia</option>
-                          <option value="America/Sao_Paulo">South America</option>
-                          <option value="Australia/Sydney">Oceania</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <button
-                          onClick={handleGeolocate}
-                          disabled={isLocating}
-                          className="w-full flex items-center justify-center gap-2 bg-zinc-900 text-white py-3 px-4 rounded-xl font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50"
-                        >
-                          {isLocating ? (
-                            <Loader2 size={18} className="animate-spin" />
-                          ) : (
-                            <MapPin size={18} />
-                          )}
-                          {isLocating ? 'Localisation...' : 'Géolocaliser'}
-                        </button>
-                        {locationName && (
-                          <p className="text-sm text-emerald-600 mt-2 text-center font-medium">
-                            <MapPin size={14} className="inline mr-1" />
-                            {locationName}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </section>
@@ -3311,6 +3519,31 @@ export function AppScreens() {
                 <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
                   <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                     <div className="flex items-center gap-3">
+                      <Monitor size={20} className="text-zinc-400" />
+                      <div>
+                        <p className="font-bold text-sm">UI Style</p>
+                        <p className="text-xs text-zinc-400">Choose the app's visual aesthetic.</p>
+                      </div>
+                    </div>
+                    <select 
+                      value={uiStyle}
+                      onChange={(e) => setUiStyle(e.target.value as UiStyle)}
+                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
+                    >
+                      <option value="modern">Modern Glass</option>
+                      <option value="zen">Zen Paper</option>
+                      <option value="pixel">8-Bit Arcade</option>
+                      <option value="cyberpunk">Cyberpunk Neon</option>
+                      <option value="monochrome">Editorial Monochrome</option>
+                      <option value="retro">70s Retro</option>
+                      <option value="midnight">Deep Midnight</option>
+                      <option value="nature">Nature Forest</option>
+                      <option value="terminal">Classic Terminal</option>
+                      <option value="bubblegum">Bubblegum Pop</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+                    <div className="flex items-center gap-3">
                       <Grid size={20} className="text-zinc-400" />
                       <span className="font-medium">Board Size</span>
                     </div>
@@ -3319,8 +3552,9 @@ export function AppScreens() {
                       onChange={(e) => setBoardSize(Number(e.target.value) as BoardSize)}
                       className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
                     >
-                      <option value={15}>15 x 15</option>
-                      <option value={19}>19 x 19</option>
+                      <option value={13}>13 x 13 (Fast)</option>
+                      <option value={15}>15 x 15 (Standard)</option>
+                      <option value={19}>19 x 19 (Pro)</option>
                     </select>
                   </div>
                   <div className="flex items-center justify-between p-4 border-b border-zinc-100">
@@ -3333,10 +3567,53 @@ export function AppScreens() {
                       onChange={(e) => setRuleSet(e.target.value as RuleSet)}
                       className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
                     >
-                      <option value="casual">Casual Gomoku</option>
-                      <option value="renju">Renju Pro Rules</option>
+                      <option value="casual">Casual (Gomoku)</option>
+                      <option value="renju">Renju (Competitive)</option>
                     </select>
                   </div>
+                  {ruleSet === 'renju' && (
+                    <div className="px-4 pb-4 -mt-2 space-y-3" id="renju-variant-options">
+                       <p className="text-[10px] text-zinc-400 bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                        <Scale size={10} className="inline mr-1" />
+                        Customize Renju variant rules. These fouls apply only to the Black player (starting player).
+                       </p>
+                       <div className="space-y-2 pl-2">
+                         <div className="flex items-center justify-between group">
+                           <span className="text-xs font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors">Three Three (3x3)</span>
+                           <button 
+                             id="toggle-double-three"
+                             onClick={() => setRenjuRules(prev => ({ ...prev, doubleThree: !prev.doubleThree }))}
+                             className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.doubleThree ? 'bg-zinc-900' : 'bg-zinc-200'}`}
+                             title={renjuRules.doubleThree ? "Double Three is forbidden" : "Double Three allowed"}
+                           >
+                             <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.doubleThree ? 'left-6' : 'left-1'}`} />
+                           </button>
+                         </div>
+                         <div className="flex items-center justify-between group">
+                           <span className="text-xs font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors">Four Four (4x4)</span>
+                           <button 
+                             id="toggle-double-four"
+                             onClick={() => setRenjuRules(prev => ({ ...prev, doubleFour: !prev.doubleFour }))}
+                             className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.doubleFour ? 'bg-zinc-900' : 'bg-zinc-200'}`}
+                             title={renjuRules.doubleFour ? "Double Four is forbidden" : "Double Four allowed"}
+                           >
+                             <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.doubleFour ? 'left-6' : 'left-1'}`} />
+                           </button>
+                         </div>
+                         <div className="flex items-center justify-between group">
+                           <span className="text-xs font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors">Long Four / Overline (6+)</span>
+                           <button 
+                             id="toggle-overline"
+                             onClick={() => setRenjuRules(prev => ({ ...prev, overline: !prev.overline }))}
+                             className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.overline ? 'bg-zinc-900' : 'bg-zinc-200'}`}
+                             title={renjuRules.overline ? "Overline is forbidden" : "Overline allowed"}
+                           >
+                             <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.overline ? 'left-6' : 'left-1'}`} />
+                           </button>
+                         </div>
+                       </div>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                     <div className="flex items-center gap-3">
                       <UserCircle size={20} className="text-zinc-400" />

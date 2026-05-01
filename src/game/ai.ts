@@ -1,4 +1,4 @@
-import { BoardState, Player, checkWin } from './engine';
+import { BoardState, Player, checkWin, getForbiddenMoveReason, findThreats, RenjuRules } from './engine';
 
 export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' | 'Master' | 'Grandmaster';
 
@@ -127,7 +127,13 @@ function getGreedyScore(board: BoardState, r: number, c: number, aiPlayer: Playe
   return attackScore + defenseScore * 0.9;
 }
 
-export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Difficulty): { row: number; col: number } {
+export function getBestMove(
+  board: BoardState, 
+  aiPlayer: Player, 
+  difficulty: Difficulty, 
+  isRenju: boolean = false,
+  rules: RenjuRules = { doubleThree: true, doubleFour: true, overline: true }
+): { row: number; col: number } {
   const size = board.length;
   const humanPlayer = aiPlayer === 'black' ? 'white' : 'black';
   
@@ -140,8 +146,27 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
   }
   if (isEmpty) return { row: Math.floor(size/2), col: Math.floor(size/2) };
 
-  const candidateMoves = getAdjacentMoves(board, 2);
+  const candidateMoves = getAdjacentMoves(board, 2).filter(move => {
+    if (isRenju && aiPlayer === 'black') {
+       return !getForbiddenMoveReason(board, move.r, move.c, aiPlayer, rules);
+    }
+    return true;
+  });
+  
   if (candidateMoves.length === 0) {
+    // If all adjacent moves are forbidden, pick any valid move
+    for(let r=0; r<size; r++) {
+      for(let c=0; c<size; c++) {
+        if(board[r][c] === null) {
+          if (isRenju && aiPlayer === 'black') {
+            if (!getForbiddenMoveReason(board, r, c, aiPlayer, rules)) return {row: r, col: c};
+          } else {
+            return {row: r, col: c};
+          }
+        }
+      }
+    }
+    // Final fallback
     for(let r=0; r<size; r++) {
       for(let c=0; c<size; c++) {
         if(board[r][c] === null) return {row: r, col: c};
@@ -175,7 +200,7 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
     return { row: move.r, col: move.c };
   }
 
-  const depth = difficulty === 'Expert' ? 2 : (difficulty === 'Master' ? 3 : 4);
+  const depth = difficulty === 'Expert' ? 2 : (difficulty === 'Master' ? 3 : 5);
   
   function minimax(boardState: BoardState, depth: number, alpha: number, beta: number, isMaximizing: boolean): number {
     if (depth === 0) {
@@ -188,8 +213,13 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
     
     const orderedMoves = moves.map(m => ({
       ...m,
-      score: getGreedyScore(boardState, m.r, m.c, currentPlayer, otherPlayer)
-    })).sort((a, b) => b.score - a.score).slice(0, 8);
+      score: getGreedyScore(boardState, m.r, m.c, currentPlayer, otherPlayer) + (Math.random() * 2) // Add small noise to avoid deterministic loops
+    })).filter(m => {
+       if (isRenju && currentPlayer === 'black') {
+         return !getForbiddenMoveReason(boardState, m.r, m.c, currentPlayer, rules);
+       }
+       return true;
+    }).sort((a, b) => b.score - a.score).slice(0, difficulty === 'Grandmaster' ? 12 : 8);
 
     if (orderedMoves.length === 0) return 0;
 
@@ -197,7 +227,7 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
       let maxEval = -Infinity;
       for (const move of orderedMoves) {
         boardState[move.r][move.c] = aiPlayer;
-        if (checkWin(boardState, move.r, move.c, aiPlayer)) {
+        if (checkWin(boardState, move.r, move.c, aiPlayer, isRenju, rules.overline)) {
           boardState[move.r][move.c] = null;
           return 1000000 + depth;
         }
@@ -212,7 +242,7 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
       let minEval = Infinity;
       for (const move of orderedMoves) {
         boardState[move.r][move.c] = humanPlayer;
-        if (checkWin(boardState, move.r, move.c, humanPlayer)) {
+        if (checkWin(boardState, move.r, move.c, humanPlayer, isRenju, rules.overline)) {
           boardState[move.r][move.c] = null;
           return -1000000 - depth;
         }
@@ -233,7 +263,7 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
   
   for (const move of topMoves) {
     board[move.r][move.c] = aiPlayer;
-    if (checkWin(board, move.r, move.c, aiPlayer)) {
+    if (checkWin(board, move.r, move.c, aiPlayer, isRenju, rules.overline)) {
       board[move.r][move.c] = null;
       return { row: move.r, col: move.c };
     }
@@ -251,7 +281,12 @@ export function getBestMove(board: BoardState, aiPlayer: Player, difficulty: Dif
   return { row: bestMove.r, col: bestMove.c };
 }
 
-export function getCoachAdvice(board: BoardState, player: Player): { row: number; col: number; explanation: string } {
+export function getCoachAdvice(
+  board: BoardState, 
+  player: Player, 
+  isRenju: boolean = false,
+  rules: RenjuRules = { doubleThree: true, doubleFour: true, overline: true }
+): { row: number; col: number; explanation: string } {
   const size = board.length;
   const opponent = player === 'black' ? 'white' : 'black';
   
@@ -259,9 +294,10 @@ export function getCoachAdvice(board: BoardState, player: Player): { row: number
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       if (!board[r][c]) {
+        if (isRenju && player === 'black' && getForbiddenMoveReason(board, r, c, player, rules)) continue;
         const testBoard = board.map(row => [...row]);
         testBoard[r][c] = player;
-        if (checkWin(testBoard, r, c, player)) {
+        if (checkWin(testBoard, r, c, player, isRenju, rules.overline)) {
           return { 
             row: r, col: c, 
             explanation: "This move completes a line of 5 and wins the game instantly! Always look for these." 
@@ -275,50 +311,64 @@ export function getCoachAdvice(board: BoardState, player: Player): { row: number
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       if (!board[r][c]) {
+        // Opponent (white) usually doesn't have forbidden moves in Renju, but let's be careful
         const testBoard = board.map(row => [...row]);
         testBoard[r][c] = opponent;
-        if (checkWin(testBoard, r, c, opponent)) {
+        if (checkWin(testBoard, r, c, opponent, isRenju, rules.overline)) {
           return { 
             row: r, col: c, 
-            explanation: "You must play here to block your opponent! If you don't, they will win on their next turn." 
+            explanation: "🚨 Danger! Your opponent has a line of four and will win on their next move. You must play here to block them." 
           };
         }
       }
     }
   }
 
-  // 3. Otherwise, use the Expert AI to find a strong move
-  const move = getBestMove(board, player, 'Expert');
+  // 3. Use findThreats for more complex defensive/offensive advice
+  const myThreatsBefore = findThreats(board, player);
+  const opponentThreats = findThreats(board, opponent);
+  
+  // If opponent has an open three, we must block it
+  const openThreeToBlock = opponentThreats.find(t => t.type === 'open-three');
+  if (openThreeToBlock) {
+    return {
+      row: openThreeToBlock.targets[0][0],
+      col: openThreeToBlock.targets[0][1],
+      explanation: "🛡️ Defend! Your opponent has an 'Open Three' (three stones with empty ends). If you don't block one end now, they'll create an unstoppable line of four."
+    };
+  }
+
+  // 4. Otherwise, use the Expert AI to find a strong move
+  const move = getBestMove(board, player, 'Expert', isRenju, rules);
   
   // Let's do a quick evaluation of the move to give a contextual explanation
   const testBoard = board.map(row => [...row]);
   testBoard[move.row][move.col] = player;
   
-  // Check if it creates a winning threat for the next turn
-  let createsThreat = false;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (!testBoard[r][c]) {
-        const nextBoard = testBoard.map(row => [...row]);
-        nextBoard[r][c] = player;
-        if (checkWin(nextBoard, r, c, player)) {
-          createsThreat = true;
-          break;
-        }
-      }
-    }
-    if (createsThreat) break;
-  }
+  const myThreatsAfter = findThreats(testBoard, player);
+  const newThreats = myThreatsAfter.filter(tAfter => 
+    !myThreatsBefore.some(tBefore => 
+      tBefore.type === tAfter.type && 
+      tAfter.stones.every(sAfter => tBefore.stones.some(sBefore => sBefore[0] === sAfter[0] && sBefore[1] === sAfter[1]))
+    )
+  );
 
-  if (createsThreat) {
+  if (newThreats.some(t => t.type === 'four')) {
     return {
       row: move.row, col: move.col,
-      explanation: "This is a very aggressive move. It creates a direct threat that your opponent will be forced to block, giving you control of the game."
+      explanation: "⚔️ Attack! This move creates a 'Four'—a line of four stones. Your opponent will be forced to spend their next turn blocking you."
+    };
+  }
+
+  if (newThreats.some(t => t.type === 'open-three')) {
+    return {
+      row: move.row, col: move.col,
+      explanation: "✨ Brilliant! This move creates an 'Open Three'. Because it's open at both ends, it's very difficult for your opponent to stop the eventual line of five."
     };
   }
 
   return {
     row: move.row, col: move.col,
-    explanation: "This is a strong strategic position. It builds your offensive potential while limiting your opponent's options. Good for long-term control."
+    explanation: "💡 Strategy: This move builds toward a strong formation. It occupies a valuable central spot that balances both your offensive growth and defensive security."
   };
 }

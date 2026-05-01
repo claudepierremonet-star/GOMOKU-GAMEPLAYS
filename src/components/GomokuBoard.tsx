@@ -151,9 +151,14 @@ export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winni
           {Array.from({ length: size - 1 }).map((_, r) =>
             Array.from({ length: size - 1 }).map((_, c) => (
               <div key={`${r}-${c}`} className="border-t border-l" style={{
-                borderColor: skin.lineColor,
-                borderRight: c === size - 2 ? `1px solid ${skin.lineColor}` : 'none',
-                borderBottom: r === size - 2 ? `1px solid ${skin.lineColor}` : 'none',
+                borderTopColor: skin.lineColor,
+                borderLeftColor: skin.lineColor,
+                borderRightColor: skin.lineColor,
+                borderBottomColor: skin.lineColor,
+                borderRightWidth: c === size - 2 ? '1px' : '0px',
+                borderBottomWidth: r === size - 2 ? '1px' : '0px',
+                borderRightStyle: 'solid',
+                borderBottomStyle: 'solid',
               }} />
             ))
           )}
@@ -173,10 +178,12 @@ export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winni
             ]).map(([r, c], i) => (
               <div
                 key={i}
-                className="absolute w-2 h-2 bg-black/60 rounded-full transform -translate-x-1/2 -translate-y-1/2"
+                className="absolute w-2 h-2 rounded-full transform -translate-x-1/2 -translate-y-1/2"
                 style={{
                   top: `${(r / (size - 1)) * 100}%`,
-                  left: `${(c / (size - 1)) * 100}%`
+                  left: `${(c / (size - 1)) * 100}%`,
+                  backgroundColor: skin.lineColor,
+                  opacity: 0.6
                 }}
               />
             ))}
