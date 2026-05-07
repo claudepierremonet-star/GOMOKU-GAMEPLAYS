@@ -82,6 +82,7 @@ const GomokuCell = memo(({
           {isLastMove && (
             <div className={`absolute inset-0 rounded-full border-2 ${cell === 'black' ? 'border-white/50' : 'border-black/50'} scale-75 opacity-50`} />
           )}
+
           {/* Highlight for winning line */}
           {isWinningCell && (
             <motion.div 

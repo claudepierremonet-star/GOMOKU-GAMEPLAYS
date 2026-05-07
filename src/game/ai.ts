@@ -28,7 +28,7 @@ function getAdjacentMoves(board: BoardState, distance: number = 1): {r: number, 
   return moves;
 }
 
-function evaluateBoard(board: BoardState, aiPlayer: Player, humanPlayer: Player): number {
+export function evaluateBoard(board: BoardState, aiPlayer: Player, humanPlayer: Player): number {
   const size = board.length;
   let score = 0;
   const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];

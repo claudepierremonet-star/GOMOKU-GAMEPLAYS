@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Pause, Settings, Trophy, User, ChevronLeft, ChevronRight, SkipBack, SkipForward, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2, MapPin, Plus, Zap, Contrast, Clock, Heart, Terminal } from 'lucide-react';
+import { Play, Pause, Settings, Trophy, User, ChevronLeft, ChevronRight, SkipBack, SkipForward, Volume2, Moon, Sun, Monitor, RefreshCw, Cpu, Lightbulb, X, Check, Grid, BookOpen, UserCircle, Palette, Globe, Loader2, Users, LogOut, Music, MessageSquare, Send, Undo2, HelpCircle, ShieldCheck, Scale, Mail, Info, Trash2, MapPin, Plus, Zap, Contrast, Clock, Heart, Terminal, Activity, Target, Award, Shield, Crown } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { GomokuBoard } from './GomokuBoard';
 import { BoardState, Player, createEmptyBoard, checkWin, isBoardFull, Threat, findThreats, getForbiddenMoveReason, RenjuRules } from '../game/engine';
@@ -73,6 +73,15 @@ interface SavedGameState {
   ruleSet: RuleSet;
   renjuRules: RenjuRules;
 }
+
+const DIFFICULTY_CONFIG: Record<Difficulty, { label: string, icon: any, color: string, description: string }> = {
+  Beginner: { label: 'Beginner', icon: Zap, color: 'bg-emerald-500', description: 'Just starting out. AI plays casually.' },
+  Intermediate: { label: 'Intermediate', icon: Activity, color: 'bg-blue-500', description: 'A steady challenge for most players.' },
+  Advanced: { label: 'Advanced', icon: Target, color: 'bg-amber-500', description: 'AI looks for basic tactical patterns.' },
+  Expert: { label: 'Expert', icon: Award, color: 'bg-rose-500', description: 'Think carefully. AI plans ahead.' },
+  Master: { label: 'Master', icon: Shield, color: 'bg-purple-600', description: 'The ultimate veteran. High depth search.' },
+  Grandmaster: { label: 'Grandmaster', icon: Crown, color: 'bg-zinc-900', description: 'Master of the stones. Maximum depth minimax.' },
+};
 
 export function AppScreens() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -1790,42 +1799,77 @@ export function AppScreens() {
                 </div>
               ) : showDifficultySelect ? (
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="flex flex-col gap-3 bg-white p-4 rounded-3xl border border-zinc-200 shadow-xl"
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className="flex flex-col gap-3 bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-2xl w-full"
                 >
-                  <div className="flex items-center justify-between mb-2 px-2">
-                    <h3 className="font-bold text-zinc-900">Select Difficulty</h3>
-                    <button onClick={() => setShowDifficultySelect(false)} className="p-1 hover:bg-zinc-100 rounded-full">
-                      <ChevronLeft size={20} />
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-2xl font-black tracking-tighter text-zinc-900">Select Difficulty</h3>
+                      <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Choose your challenge</p>
+                    </div>
+                    <button 
+                      onClick={() => setShowDifficultySelect(false)} 
+                      className="w-10 h-10 bg-zinc-100 flex items-center justify-center rounded-full hover:bg-zinc-200 transition-colors"
+                    >
+                      <X size={20} className="text-zinc-500" />
                     </button>
                   </div>
-                  {(['Beginner', 'Intermediate', 'Advanced', 'Expert', 'Master', 'Grandmaster'] as Difficulty[]).map(diff => (
-                    <button
-                      key={diff}
-                      onClick={() => {
-                        setAiDifficulty(diff);
-                        setShowDifficultySelect(false);
-                        startGame('pve');
-                      }}
-                      className={`relative py-3 px-4 rounded-xl font-semibold text-left transition-all overflow-hidden ${
-                        diff === 'Grandmaster'
-                          ? `bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm hover:opacity-90 ${aiDifficulty === diff ? 'ring-2 ring-purple-500 ring-offset-2' : ''}`
-                          : aiDifficulty === diff
-                            ? 'bg-zinc-900 text-white shadow-md'
-                            : diff === 'Beginner' ? 'bg-zinc-50 text-zinc-500 hover:bg-zinc-100'
-                            : diff === 'Intermediate' ? 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                            : diff === 'Advanced' ? 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300'
-                            : diff === 'Expert' ? 'bg-zinc-300 text-zinc-800 hover:bg-zinc-400'
-                            : 'bg-zinc-400 text-zinc-900 hover:bg-zinc-500' // Master
-                      }`}
-                    >
-                      {diff === 'Grandmaster' && aiDifficulty !== diff && (
-                        <div className="absolute inset-0 bg-white/10 opacity-0 hover:opacity-100 transition-opacity" />
-                      )}
-                      {diff}
-                    </button>
-                  ))}
+                  
+                  <div className="grid grid-cols-1 gap-3">
+                    {(['Beginner', 'Intermediate', 'Advanced', 'Expert', 'Master', 'Grandmaster'] as Difficulty[]).map(diff => {
+                      const config = DIFFICULTY_CONFIG[diff];
+                      const Icon = config.icon;
+                      const isSelected = aiDifficulty === diff;
+                      
+                      return (
+                        <button
+                          key={diff}
+                          onClick={() => {
+                            setAiDifficulty(diff);
+                            setShowDifficultySelect(false);
+                            startGame('pve');
+                          }}
+                          className={`group flex items-center gap-4 p-4 rounded-2xl text-left transition-all relative overflow-hidden ${
+                            isSelected 
+                              ? 'bg-zinc-900 text-white shadow-xl scale-[1.02]' 
+                              : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-transparent hover:border-zinc-200'
+                          }`}
+                        >
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm shrink-0 transition-transform group-hover:scale-110 ${
+                            isSelected ? 'bg-white/20' : `${config.color} text-white`
+                          }`}>
+                            <Icon size={24} />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <p className={`font-black text-lg tracking-tight uppercase ${isSelected ? 'text-white' : 'text-zinc-900'}`}>
+                                {config.label}
+                              </p>
+                              {isSelected && (
+                                <motion.div 
+                                  layoutId="selected-check"
+                                  className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center"
+                                >
+                                  <Check size={14} className="text-white" strokeWidth={3} />
+                                </motion.div>
+                              )}
+                            </div>
+                            <p className={`text-xs font-medium truncate ${isSelected ? 'text-white/60' : 'text-zinc-400'}`}>
+                              {config.description}
+                            </p>
+                          </div>
+
+                          {diff === 'Grandmaster' && !isSelected && (
+                            <div className="absolute top-2 right-2">
+                              <Zap size={12} className="text-amber-400 animate-pulse" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </motion.div>
               ) : null}
             </div>
@@ -1987,6 +2031,24 @@ export function AppScreens() {
                 </div>
 
                 {/* Center: Board */}
+                <div className="px-4 mt-2">
+                  <AnimatePresence>
+                    {threats.length > 0 && !winner && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0, y: -10 }}
+                        animate={{ height: 'auto', opacity: 1, y: 0 }}
+                        exit={{ height: 0, opacity: 0, y: -10 }}
+                        className="bg-red-50 text-red-600 px-4 py-2 rounded-2xl border border-red-100 flex items-center gap-3 shadow-sm mb-2 overflow-hidden"
+                      >
+                        <ShieldCheck size={18} className="shrink-0" />
+                        <p className="text-xs font-bold leading-tight">
+                          Threat Detected! Your opponent has {threats.length} potential winning {threats.length === 1 ? 'line' : 'lines'}.
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
                   <AnimatePresence>
                     {showMusicModal && (
@@ -2033,29 +2095,6 @@ export function AppScreens() {
                           {forbiddenReason === 'overline' && 'Forbidden: Overline (6+ stones)'}
                           {forbiddenReason === 'double-three' && 'Forbidden: Double Three'}
                           {forbiddenReason === 'double-four' && 'Forbidden: Double Four'}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <AnimatePresence>
-                    {threats.length > 0 && !winner && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 bg-white p-4 md:p-6 rounded-3xl shadow-2xl border border-red-100 w-[90%] max-w-md z-10"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="bg-red-100 p-3 rounded-full text-red-600 shrink-0">
-                            <ShieldCheck size={24} />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-bold text-lg mb-1 text-red-600">Threat Detected!</h3>
-                            <p className="text-zinc-600 text-sm mb-4 leading-relaxed">
-                              Your opponent has {threats.length} potential winning {threats.length === 1 ? 'line' : 'lines'} (fours or open threes). Block them immediately!
-                            </p>
-                          </div>
                         </div>
                       </motion.div>
                     )}
@@ -2313,7 +2352,56 @@ export function AppScreens() {
               </div>
             </header>
 
-              <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
+            <div className="px-4">
+              <AnimatePresence>
+                {threats.length > 0 && !winner && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0, y: -10 }}
+                    animate={{ height: 'auto', opacity: 1, y: 0 }}
+                    exit={{ height: 0, opacity: 0, y: -10 }}
+                    className="bg-red-50 text-red-600 px-4 py-2 rounded-2xl border border-red-100 flex items-center gap-3 shadow-sm mb-2 overflow-hidden"
+                  >
+                    <ShieldCheck size={18} className="shrink-0" />
+                    <p className="text-xs font-bold leading-tight">
+                      Threat Detected! Opponent has {threats.length} potential winning {threats.length === 1 ? 'line' : 'lines'}.
+                    </p>
+                  </motion.div>
+                )}
+                {coachAdvice && !winner && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0, y: -10 }}
+                    animate={{ height: 'auto', opacity: 1, y: 0 }}
+                    exit={{ height: 0, opacity: 0, y: -10 }}
+                    className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl border border-emerald-100 flex items-center gap-3 shadow-sm mb-2 overflow-hidden"
+                  >
+                    <Lightbulb size={18} className="shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold leading-tight truncate">
+                        Hint: {coachAdvice.explanation}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleCellClick(coachAdvice.row, coachAdvice.col)}
+                        className="bg-emerald-500 text-white p-1.5 rounded-lg hover:bg-emerald-600 transition-colors"
+                        title="Apply Move"
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        onClick={() => setCoachAdvice(null)}
+                        className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg hover:bg-emerald-200 transition-colors"
+                        title="Close"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
                 <AnimatePresence>
                   {showMusicModal && (
                     <motion.div
@@ -2347,67 +2435,6 @@ export function AppScreens() {
                   />
                 </div>
 
-              <AnimatePresence>
-                {threats.length > 0 && !winner && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 bg-white p-4 md:p-6 rounded-3xl shadow-2xl border border-red-100 w-[90%] max-w-md z-10"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="bg-red-100 p-3 rounded-full text-red-600 shrink-0">
-                        <ShieldCheck size={24} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg mb-1 text-red-600">Threat Detected!</h3>
-                        <p className="text-zinc-600 text-sm mb-4 leading-relaxed">
-                          Your opponent has {threats.length} potential winning {threats.length === 1 ? 'line' : 'lines'} (fours or open threes). Block them immediately!
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <AnimatePresence>
-                {coachAdvice && !winner && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 bg-white p-4 md:p-6 rounded-3xl shadow-2xl border border-emerald-100 w-[90%] max-w-md z-10"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="bg-emerald-100 p-3 rounded-full text-emerald-600 shrink-0">
-                        <Lightbulb size={24} />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg mb-1">Strategic Hint</h3>
-                        <p className="text-zinc-600 text-sm mb-4 leading-relaxed">
-                          {coachAdvice.explanation}
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleCellClick(coachAdvice.row, coachAdvice.col)}
-                            className="flex-1 bg-emerald-500 text-white py-2 px-4 rounded-xl font-semibold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 text-sm"
-                          >
-                            <Check size={16} />
-                            Apply Move
-                          </button>
-                          <button
-                            onClick={() => setCoachAdvice(null)}
-                            className="bg-zinc-100 text-zinc-600 py-2 px-4 rounded-xl font-semibold hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 text-sm"
-                          >
-                            <X size={16} />
-                            Close
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </main>
               </div>
             )}
@@ -3614,6 +3641,24 @@ export function AppScreens() {
                        </div>
                     </div>
                   )}
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+                    <div className="flex items-center gap-3">
+                      <Cpu size={20} className="text-zinc-400" />
+                      <span className="font-medium">AI Difficulty</span>
+                    </div>
+                    <select 
+                      value={aiDifficulty}
+                      onChange={(e) => setAiDifficulty(e.target.value as Difficulty)}
+                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
+                    >
+                      <option value="Beginner">Beginner</option>
+                      <option value="Intermediate">Intermediate</option>
+                      <option value="Advanced">Advanced</option>
+                      <option value="Expert">Expert</option>
+                      <option value="Master">Master</option>
+                      <option value="Grandmaster">Grandmaster</option>
+                    </select>
+                  </div>
                   <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                     <div className="flex items-center gap-3">
                       <UserCircle size={20} className="text-zinc-400" />
