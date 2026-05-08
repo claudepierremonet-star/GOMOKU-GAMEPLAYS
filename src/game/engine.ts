@@ -9,12 +9,25 @@ export interface GameState {
   moveHistory: { row: number; col: number; player: Player }[];
 }
 
-export function createEmptyBoard(size: number = 15): BoardState {
-  return Array.from({ length: size }, () => Array(size).fill(null));
+export function parseBoardSize(size: string | number): {rows: number, cols: number} {
+  if (typeof size === 'number') {
+    return { rows: size, cols: size };
+  }
+  const parts = size.toLowerCase().split('x').map(Number);
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    return { cols: parts[0], rows: parts[1] };
+  }
+  return { cols: 15, rows: 15 };
+}
+
+export function createEmptyBoard(size: string | number = 15): BoardState {
+  const { rows, cols } = parseBoardSize(size);
+  return Array.from({ length: rows }, () => Array(cols).fill(null));
 }
 
 export function checkWin(board: BoardState, row: number, col: number, player: Player, isRenju: boolean = false, overlineForbidden: boolean = true): [number, number][] | null {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   const directions = [
     [0, 1],  // Horizontal
     [1, 0],  // Vertical
@@ -27,10 +40,10 @@ export function checkWin(board: BoardState, row: number, col: number, player: Pl
     const line: [number, number][] = [[row, col]];
 
     // Check one direction
-    for (let i = 1; i < size; i++) {
+    for (let i = 1; i < Math.max(rows, cols); i++) {
       const r = row + dr * i;
       const c = col + dc * i;
-      if (r >= 0 && r < size && c >= 0 && c < size && board[r][c] === player) {
+      if (r >= 0 && r < rows && c >= 0 && c < cols && board[r][c] === player) {
         count++;
         line.push([r, c]);
       } else {
@@ -39,10 +52,10 @@ export function checkWin(board: BoardState, row: number, col: number, player: Pl
     }
 
     // Check opposite direction
-    for (let i = 1; i < size; i++) {
+    for (let i = 1; i < Math.max(rows, cols); i++) {
       const r = row - dr * i;
       const c = col - dc * i;
-      if (r >= 0 && r < size && c >= 0 && c < size && board[r][c] === player) {
+      if (r >= 0 && r < rows && c >= 0 && c < cols && board[r][c] === player) {
         count++;
         line.push([r, c]);
       } else {
@@ -64,7 +77,7 @@ export function checkWin(board: BoardState, row: number, col: number, player: Pl
 }
 
 export function isBoardFull(board: BoardState): boolean {
-  return board.every(row => row.every(cell => cell !== null));
+  return board.every(r => r.every(cell => cell !== null));
 }
 
 export interface RenjuRules {
@@ -89,7 +102,8 @@ export function getForbiddenMoveReason(
 ): 'double-three' | 'double-four' | 'overline' | null {
   if (player !== 'black') return null;
 
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   const tempBoard = board.map(r => [...r]);
   tempBoard[row][col] = player;
 
@@ -100,22 +114,24 @@ export function getForbiddenMoveReason(
     [1, -1]  // Diagonal \
   ];
 
+  const maxDim = Math.max(rows, cols);
+
   // 1. Check Overline
   if (rules.overline) {
     for (const [dr, dc] of directions) {
       let count = 1;
       // Check one direction
-      for (let i = 1; i < size; i++) {
+      for (let i = 1; i < maxDim; i++) {
         const r = row + dr * i;
         const c = col + dc * i;
-        if (r >= 0 && r < size && c >= 0 && c < size && tempBoard[r][c] === 'black') count++;
+        if (r >= 0 && r < rows && c >= 0 && c < cols && tempBoard[r][c] === 'black') count++;
         else break;
       }
       // Check opposite direction
-      for (let i = 1; i < size; i++) {
+      for (let i = 1; i < maxDim; i++) {
         const r = row - dr * i;
         const c = col - dc * i;
-        if (r >= 0 && r < size && c >= 0 && c < size && tempBoard[r][c] === 'black') count++;
+        if (r >= 0 && r < rows && c >= 0 && c < cols && tempBoard[r][c] === 'black') count++;
         else break;
       }
       if (count > 5) return 'overline';
@@ -143,7 +159,7 @@ export function getForbiddenMoveReason(
         for (let i = 0; i < 5; i++) {
           const r = row + dr * (offset + i);
           const c = col + dc * (offset + i);
-          if (r >= 0 && r < size && c >= 0 && c < size) {
+          if (r >= 0 && r < rows && c >= 0 && c < cols) {
             if (r === row && c === col) includesNewMove = true;
             if (tempBoard[r][c] === 'black') blackInWindow++;
             else if (tempBoard[r][c] === null) {
@@ -166,13 +182,13 @@ export function getForbiddenMoveReason(
           for (let i = 1; i < 6; i++) {
             const r = nullPos.r + dr * i;
             const c = nullPos.c + dc * i;
-            if (r >= 0 && r < size && c >= 0 && c < size && checkBoard[r][c] === 'black') winCount++;
+            if (r >= 0 && r < rows && c >= 0 && c < cols && checkBoard[r][c] === 'black') winCount++;
             else break;
           }
           for (let i = 1; i < 6; i++) {
             const r = nullPos.r - dr * i;
             const c = nullPos.c - dc * i;
-            if (r >= 0 && r < size && c >= 0 && c < size && checkBoard[r][c] === 'black') winCount++;
+            if (r >= 0 && r < rows && c >= 0 && c < cols && checkBoard[r][c] === 'black') winCount++;
             else break;
           }
           
@@ -202,7 +218,7 @@ export function getForbiddenMoveReason(
         for (let i = 0; i < 6; i++) {
           const r = row + dr * (offset + i);
           const c = col + dc * (offset + i);
-          if (r >= 0 && r < size && c >= 0 && c < size) {
+          if (r >= 0 && r < rows && c >= 0 && c < cols) {
             if (r === row && c === col) includesNewMove = true;
             window.push({r, c, p: tempBoard[r][c]});
             if (tempBoard[r][c] === 'black') blackInWindow++;
@@ -252,7 +268,8 @@ export interface Threat {
 export function findThreats(board: BoardState, currentPlayer: Player): Threat[] {
   if (!currentPlayer) return [];
   
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   const opponent = currentPlayer === 'black' ? 'white' : 'black';
   const threats: Threat[] = [];
 
@@ -264,12 +281,12 @@ export function findThreats(board: BoardState, currentPlayer: Player): Threat[] 
   ];
 
   const getCell = (r: number, c: number) => {
-    if (r >= 0 && r < size && c >= 0 && c < size) return board[r][c];
+    if (r >= 0 && r < rows && c >= 0 && c < cols) return board[r][c];
     return undefined;
   };
 
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       for (const [dr, dc] of directions) {
         // Find Fours (5-cell windows with 4 opponent stones and 1 null)
         const window5 = [];

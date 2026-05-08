@@ -37,7 +37,7 @@ const AMBIENT_COLORS = [
 
 type Screen = 'home' | 'game' | 'settings' | 'stats' | 'replay' | 'music' | 'profile' | 'tutorial' | 'support' | 'privacy' | 'online';
 type GameMode = 'pvp' | 'pve' | 'online';
-type BoardSize = 13 | 15 | 19;
+type BoardSize = string | number;
 type RuleSet = 'casual' | 'renju';
 type StartingPlayer = 'human' | 'ai';
 type TimeLimit = 0 | 15 | 30 | 60;
@@ -163,7 +163,8 @@ export function AppScreens() {
   // Settings
   const [boardSize, setBoardSize] = useState<BoardSize>(() => {
     const saved = localStorage.getItem('gomoku_boardSize');
-    return saved ? parseInt(saved) as BoardSize : 15;
+    if (!saved) return 15;
+    return isNaN(Number(saved)) ? saved : parseInt(saved) as BoardSize;
   });
   const [ruleSet, setRuleSet] = useState<RuleSet>(() => {
     const saved = localStorage.getItem('gomoku_ruleSet');
@@ -2049,7 +2050,7 @@ export function AppScreens() {
                   </AnimatePresence>
                 </div>
 
-                <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
+                <main className="flex-1 flex flex-col items-center justify-center relative my-1 sm:my-4 md:my-8 px-1 sm:px-4 w-full">
                   <AnimatePresence>
                     {showMusicModal && (
                       <motion.div
@@ -2070,16 +2071,18 @@ export function AppScreens() {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                  <div className="w-full max-w-[min(90vw,70vh)] aspect-square relative">
-                    <GomokuBoard
-                      board={board}
-                      onCellClick={handleCellClick}
-                      winningLine={winningLine}
-                      lastMove={lastMove}
-                      keyboardCursor={keyboardCursor}
-                      skin={currentSkin}
-                      threats={threats}
-                    />
+                  <div className="w-full flex-1 sm:flex-none h-full sm:h-auto sm:max-w-[min(90vw,70vh)] sm:aspect-square relative flex items-center justify-center">
+                    <div className="w-full h-full max-h-full max-w-full flex items-center justify-center" style={{ containerType: 'size' }}>
+                      <GomokuBoard
+                        board={board}
+                        onCellClick={handleCellClick}
+                        winningLine={winningLine}
+                        lastMove={lastMove}
+                        keyboardCursor={keyboardCursor}
+                        skin={currentSkin}
+                        threats={threats}
+                      />
+                    </div>
                   </div>
 
                   <AnimatePresence>
@@ -2401,7 +2404,7 @@ export function AppScreens() {
               </AnimatePresence>
             </div>
 
-            <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
+            <main className="flex-1 flex flex-col items-center justify-center relative my-1 sm:my-4 md:my-8 px-1 sm:px-4 w-full">
                 <AnimatePresence>
                   {showMusicModal && (
                     <motion.div
@@ -2422,17 +2425,19 @@ export function AppScreens() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <div className="w-full max-w-[min(90vw,70vh)] aspect-square relative">
-                  <GomokuBoard
-                    board={board}
-                    onCellClick={handleCellClick}
-                    winningLine={winningLine}
-                    lastMove={lastMove}
-                    coachMove={coachAdvice ? { row: coachAdvice.row, col: coachAdvice.col } : null}
-                    keyboardCursor={keyboardCursor}
-                    skin={currentSkin}
-                    threats={threats}
-                  />
+                <div className="w-full flex-1 sm:flex-none h-full sm:h-auto sm:max-w-[min(90vw,70vh)] sm:aspect-square relative flex items-center justify-center">
+                  <div className="w-full h-full max-h-full max-w-full flex items-center justify-center" style={{ containerType: 'size' }}>
+                    <GomokuBoard
+                      board={board}
+                      onCellClick={handleCellClick}
+                      winningLine={winningLine}
+                      lastMove={lastMove}
+                      coachMove={coachAdvice ? { row: coachAdvice.row, col: coachAdvice.col } : null}
+                      keyboardCursor={keyboardCursor}
+                      skin={currentSkin}
+                      threats={threats}
+                    />
+                  </div>
                 </div>
 
             </main>
@@ -3034,19 +3039,21 @@ export function AppScreens() {
               </div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-center relative my-4 md:my-8 px-4">
-              <div className="w-full max-w-[min(90vw,70vh)] aspect-square relative">
-                <GomokuBoard
-                  board={replayBoard}
-                  onCellClick={() => {}}
-                  winningLine={
-                    replayMoveIndex === replayMatch.moves.length && replayMatch.winner !== 'draw' && replayMatch.moves.length > 0
-                      ? checkWin(replayBoard, replayMatch.moves[replayMatch.moves.length - 1].row, replayMatch.moves[replayMatch.moves.length - 1].col, replayMatch.moves[replayMatch.moves.length - 1].player, false)
-                      : null
-                  }
-                  lastMove={replayMoveIndex > 0 ? replayMatch.moves[replayMoveIndex - 1] : null}
-                  skin={allSkins.find(s => s.id === (replayMatch as any).selectedSkin) || SKINS[0]}
-                />
+            <main className="flex-1 flex flex-col items-center justify-center relative my-1 sm:my-4 md:my-8 px-1 sm:px-4 w-full">
+              <div className="w-full flex-1 sm:flex-none h-full sm:h-auto sm:max-w-[min(90vw,70vh)] sm:aspect-square relative flex items-center justify-center">
+                <div className="w-full h-full max-h-full max-w-full flex items-center justify-center" style={{ containerType: 'size' }}>
+                  <GomokuBoard
+                    board={replayBoard}
+                    onCellClick={() => {}}
+                    winningLine={
+                      replayMoveIndex === replayMatch.moves.length && replayMatch.winner !== 'draw' && replayMatch.moves.length > 0
+                        ? checkWin(replayBoard, replayMatch.moves[replayMatch.moves.length - 1].row, replayMatch.moves[replayMatch.moves.length - 1].col, replayMatch.moves[replayMatch.moves.length - 1].player, false)
+                        : null
+                    }
+                    lastMove={replayMoveIndex > 0 ? replayMatch.moves[replayMoveIndex - 1] : null}
+                    skin={allSkins.find(s => s.id === (replayMatch as any).selectedSkin) || SKINS[0]}
+                  />
+                </div>
               </div>
 
               <div className="mt-8 w-full max-w-md bg-white p-6 rounded-3xl shadow-xl border border-zinc-100">
@@ -3576,12 +3583,19 @@ export function AppScreens() {
                     </div>
                     <select 
                       value={boardSize}
-                      onChange={(e) => setBoardSize(Number(e.target.value) as BoardSize)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setBoardSize(isNaN(Number(val)) ? val : Number(val) as BoardSize);
+                      }}
                       className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
                     >
                       <option value={13}>13 x 13 (Fast)</option>
                       <option value={15}>15 x 15 (Standard)</option>
                       <option value={19}>19 x 19 (Pro)</option>
+                      <option value="19x35">19 x 35</option>
+                      <option value="19x40">19 x 40</option>
+                      <option value="19x45">19 x 45</option>
+                      <option value="19x50">19 x 50</option>
                     </select>
                   </div>
                   <div className="flex items-center justify-between p-4 border-b border-zinc-100">

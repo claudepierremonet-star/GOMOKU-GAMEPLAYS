@@ -3,14 +3,15 @@ import { BoardState, Player, checkWin, getForbiddenMoveReason, findThreats, Renj
 export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert' | 'Master' | 'Grandmaster';
 
 function getAdjacentMoves(board: BoardState, distance: number = 1): {r: number, c: number}[] {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   const moves: {r: number, c: number}[] = [];
   const hasStone = (r: number, c: number) => {
     for (let dr = -distance; dr <= distance; dr++) {
       for (let dc = -distance; dc <= distance; dc++) {
         if (dr === 0 && dc === 0) continue;
         const nr = r + dr, nc = c + dc;
-        if (nr >= 0 && nr < size && nc >= 0 && nc < size && board[nr][nc] !== null) {
+        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc] !== null) {
           return true;
         }
       }
@@ -18,8 +19,8 @@ function getAdjacentMoves(board: BoardState, distance: number = 1): {r: number, 
     return false;
   };
 
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       if (board[r][c] === null && hasStone(r, c)) {
         moves.push({r, c});
       }
@@ -29,12 +30,13 @@ function getAdjacentMoves(board: BoardState, distance: number = 1): {r: number, 
 }
 
 export function evaluateBoard(board: BoardState, aiPlayer: Player, humanPlayer: Player): number {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   let score = 0;
   const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
   
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       const player = board[r][c];
       if (player === null) continue;
       
@@ -43,14 +45,14 @@ export function evaluateBoard(board: BoardState, aiPlayer: Player, humanPlayer: 
       for (const [dr, dc] of directions) {
         const prevR = r - dr;
         const prevC = c - dc;
-        if (prevR >= 0 && prevR < size && prevC >= 0 && prevC < size && board[prevR][prevC] === player) {
+        if (prevR >= 0 && prevR < rows && prevC >= 0 && prevC < cols && board[prevR][prevC] === player) {
           continue; 
         }
         
         let consecutive = 1;
         let openEnds = 0;
         
-        if (prevR >= 0 && prevR < size && prevC >= 0 && prevC < size && board[prevR][prevC] === null) {
+        if (prevR >= 0 && prevR < rows && prevC >= 0 && prevC < cols && board[prevR][prevC] === null) {
           openEnds++;
         }
         
@@ -58,7 +60,7 @@ export function evaluateBoard(board: BoardState, aiPlayer: Player, humanPlayer: 
         while (true) {
           const nr = r + dr * i;
           const nc = c + dc * i;
-          if (nr < 0 || nr >= size || nc < 0 || nc >= size) break;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) break;
           if (board[nr][nc] === player) {
             consecutive++;
           } else if (board[nr][nc] === null) {
@@ -81,7 +83,8 @@ export function evaluateBoard(board: BoardState, aiPlayer: Player, humanPlayer: 
 }
 
 function getGreedyScore(board: BoardState, r: number, c: number, aiPlayer: Player, humanPlayer: Player): number {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   let score = 0;
   const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
   
@@ -95,7 +98,7 @@ function getGreedyScore(board: BoardState, r: number, c: number, aiPlayer: Playe
       while (true) {
         const nr = r + dr * i;
         const nc = c + dc * i;
-        if (nr < 0 || nr >= size || nc < 0 || nc >= size) break;
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) break;
         if (board[nr][nc] === player) consecutive++;
         else if (board[nr][nc] === null) { openEnds++; break; }
         else break;
@@ -106,7 +109,7 @@ function getGreedyScore(board: BoardState, r: number, c: number, aiPlayer: Playe
       while (true) {
         const nr = r - dr * i;
         const nc = c - dc * i;
-        if (nr < 0 || nr >= size || nc < 0 || nc >= size) break;
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) break;
         if (board[nr][nc] === player) consecutive++;
         else if (board[nr][nc] === null) { openEnds++; break; }
         else break;
@@ -134,17 +137,18 @@ export function getBestMove(
   isRenju: boolean = false,
   rules: RenjuRules = { doubleThree: true, doubleFour: true, overline: true }
 ): { row: number; col: number } {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   const humanPlayer = aiPlayer === 'black' ? 'white' : 'black';
   
   let isEmpty = true;
-  for(let r=0; r<size; r++) {
-    for(let c=0; c<size; c++) {
+  for(let r=0; r<rows; r++) {
+    for(let c=0; c<cols; c++) {
       if(board[r][c] !== null) { isEmpty = false; break; }
     }
     if(!isEmpty) break;
   }
-  if (isEmpty) return { row: Math.floor(size/2), col: Math.floor(size/2) };
+  if (isEmpty) return { row: Math.floor(rows/2), col: Math.floor(cols/2) };
 
   const candidateMoves = getAdjacentMoves(board, 2).filter(move => {
     if (isRenju && aiPlayer === 'black') {
@@ -155,8 +159,8 @@ export function getBestMove(
   
   if (candidateMoves.length === 0) {
     // If all adjacent moves are forbidden, pick any valid move
-    for(let r=0; r<size; r++) {
-      for(let c=0; c<size; c++) {
+    for(let r=0; r<rows; r++) {
+      for(let c=0; c<cols; c++) {
         if(board[r][c] === null) {
           if (isRenju && aiPlayer === 'black') {
             if (!getForbiddenMoveReason(board, r, c, aiPlayer, rules)) return {row: r, col: c};
@@ -167,8 +171,8 @@ export function getBestMove(
       }
     }
     // Final fallback
-    for(let r=0; r<size; r++) {
-      for(let c=0; c<size; c++) {
+    for(let r=0; r<rows; r++) {
+      for(let c=0; c<cols; c++) {
         if(board[r][c] === null) return {row: r, col: c};
       }
     }
@@ -287,12 +291,13 @@ export function getCoachAdvice(
   isRenju: boolean = false,
   rules: RenjuRules = { doubleThree: true, doubleFour: true, overline: true }
 ): { row: number; col: number; explanation: string } {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0].length;
   const opponent = player === 'black' ? 'white' : 'black';
   
   // 1. Check if player can win immediately
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       if (!board[r][c]) {
         if (isRenju && player === 'black' && getForbiddenMoveReason(board, r, c, player, rules)) continue;
         const testBoard = board.map(row => [...row]);
@@ -308,8 +313,8 @@ export function getCoachAdvice(
   }
 
   // 2. Check if opponent can win immediately and block
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       if (!board[r][c]) {
         // Opponent (white) usually doesn't have forbidden moves in Renju, but let's be careful
         const testBoard = board.map(row => [...row]);

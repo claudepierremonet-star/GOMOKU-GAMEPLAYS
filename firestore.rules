@@ -73,7 +73,7 @@ service cloud.firestore {
              (!('customSkins' in data) || data.customSkins is list) &&
              (!('lastPlayed' in data) || data.lastPlayed is timestamp) &&
              (!('settings' in data) || (data.settings is map && 
-               (!('boardSize' in data.settings) || data.settings.boardSize in [15, 19]) &&
+               (!('boardSize' in data.settings) || data.settings.boardSize is int || data.settings.boardSize is string) &&
                (!('ruleSet' in data.settings) || data.settings.ruleSet in ['casual', 'renju']) &&
                (!('startingPlayer' in data.settings) || data.settings.startingPlayer in ['human', 'ai']) &&
                (!('aiDifficulty' in data.settings) || data.settings.aiDifficulty is string) &&
@@ -88,13 +88,13 @@ service cloud.firestore {
              data.player1Uid is string && data.player1Uid.size() > 0 &&
              data.player2Uid is string && data.player2Uid.size() > 0 &&
              (!('winnerUid' in data) || (data.winnerUid is string && data.winnerUid.size() < 128)) &&
-             data.gameMode in ['online', 'pve', 'local'] &&
-             data.moves is list && data.moves.size() < 500 &&
-             data.boardSize is int && data.boardSize >= 10 && data.boardSize <= 25 &&
+             data.gameMode in ['online', 'pve', 'pvp', 'local'] &&
+             data.moves is list && data.moves.size() < 5000 &&
+             (data.boardSize is int || data.boardSize is string) &&
              data.player1EloBefore is int && data.player1EloAfter is int &&
              data.player2EloBefore is int && data.player2EloAfter is int &&
-             (!('selectedSkin' in data) || data.selectedSkin is string) &&
-             (!('selectedCharacter' in data) || data.selectedCharacter is string);
+             (!('selectedSkin' in data) || data.selectedSkin is string || data.selectedSkin == null) &&
+             (!('selectedCharacter' in data) || data.selectedCharacter is string || data.selectedCharacter == null);
     }
 
     // ===============================================================

@@ -113,7 +113,8 @@ interface GomokuBoardProps {
 }
 
 export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winningLine, lastMove, coachMove, keyboardCursor, skin, threats = [] }: GomokuBoardProps) {
-  const size = board.length;
+  const rows = board.length;
+  const cols = board[0]?.length || 0;
 
   // Stable callback for cell clicks to prevent re-renders of memoized cells
   const onCellClickRef = useRef(onCellClick);
@@ -143,21 +144,28 @@ export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winni
 
   return (
     <div 
-      className="relative aspect-square w-full max-w-[600px] mx-auto rounded-sm shadow-xl p-2 md:p-4 transition-colors duration-500"
-      style={{ backgroundColor: skin.boardColor }}
+      className={`relative mx-auto rounded-sm shadow-xl p-1 sm:p-2 md:p-4 transition-colors duration-500`}
+      style={{ 
+        backgroundColor: skin.boardColor, 
+        aspectRatio: `${cols}/${rows}`,
+        width: `min(100cqw, 100cqh * ${cols / rows})`,
+        height: `min(100cqh, 100cqw * ${rows / cols})`,
+        maxHeight: '100%',
+        maxWidth: '100%',
+      }}
     >
       {/* Grid Lines */}
-      <div className="absolute inset-0 p-4 md:p-6 pointer-events-none">
-        <div className="w-full h-full relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${size - 1}, 1fr)`, gridTemplateRows: `repeat(${size - 1}, 1fr)` }}>
-          {Array.from({ length: size - 1 }).map((_, r) =>
-            Array.from({ length: size - 1 }).map((_, c) => (
+      <div className="absolute inset-0 p-2 sm:p-4 md:p-6 pointer-events-none">
+        <div className="w-full h-full relative" style={{ display: 'grid', gridTemplateColumns: `repeat(${cols - 1}, 1fr)`, gridTemplateRows: `repeat(${rows - 1}, 1fr)` }}>
+          {Array.from({ length: rows - 1 }).map((_, r) =>
+            Array.from({ length: cols - 1 }).map((_, c) => (
               <div key={`${r}-${c}`} className="border-t border-l" style={{
                 borderTopColor: skin.lineColor,
                 borderLeftColor: skin.lineColor,
                 borderRightColor: skin.lineColor,
                 borderBottomColor: skin.lineColor,
-                borderRightWidth: c === size - 2 ? '1px' : '0px',
-                borderBottomWidth: r === size - 2 ? '1px' : '0px',
+                borderRightWidth: c === cols - 2 ? '1px' : '0px',
+                borderBottomWidth: r === rows - 2 ? '1px' : '0px',
                 borderRightStyle: 'solid',
                 borderBottomStyle: 'solid',
               }} />
@@ -167,22 +175,24 @@ export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winni
       </div>
 
       {/* Star Points (Hoshi) */}
-      {(size === 15 || size === 19) && (
-        <div className="absolute inset-0 p-4 md:p-6 pointer-events-none">
+      {(rows === 15 && cols === 15 || rows === 19 && cols === 19 || rows === 13 && cols === 13) && (
+        <div className="absolute inset-0 p-2 sm:p-4 md:p-6 pointer-events-none">
           <div className="w-full h-full relative">
-            {(size === 15 ? [
+            {(rows === 15 ? [
               [3, 3], [3, 11], [11, 3], [11, 11], [7, 7]
-            ] : [
+            ] : rows === 19 ? [
               [3, 3], [3, 9], [3, 15],
               [9, 3], [9, 9], [9, 15],
               [15, 3], [15, 9], [15, 15]
+            ] : [
+              [3, 3], [3, 9], [9, 3], [9, 9], [6, 6]
             ]).map(([r, c], i) => (
               <div
                 key={i}
                 className="absolute w-2 h-2 rounded-full transform -translate-x-1/2 -translate-y-1/2"
                 style={{
-                  top: `${(r / (size - 1)) * 100}%`,
-                  left: `${(c / (size - 1)) * 100}%`,
+                  top: `${(r / (rows - 1)) * 100}%`,
+                  left: `${(c / (cols - 1)) * 100}%`,
                   backgroundColor: skin.lineColor,
                   opacity: 0.6
                 }}
@@ -193,8 +203,8 @@ export const GomokuBoard = memo(function GomokuBoard({ board, onCellClick, winni
       )}
 
       {/* Interactive Cells */}
-      <div className="absolute inset-0 p-2 md:p-4">
-        <div className="w-full h-full" style={{ display: 'grid', gridTemplateColumns: `repeat(${size}, 1fr)`, gridTemplateRows: `repeat(${size}, 1fr)` }}>
+      <div className="absolute inset-0 p-0 sm:p-2 md:p-4">
+        <div className="w-full h-full" style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
           {board.map((row, r) =>
             row.map((cell, c) => {
               const cellKey = `${r}-${c}`;
