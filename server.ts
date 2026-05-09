@@ -511,13 +511,14 @@ async function startServer() {
       }
     });
 
-    socket.on('sendMessage', ({ roomId, text, timestamp, senderName }) => {
+    socket.on('sendMessage', ({ roomId, text, timestamp, senderName, achievements }) => {
       const room = rooms.get(roomId);
       if (room) {
         socket.to(roomId).emit('receiveMessage', {
           sender: senderName || `Player ${socket.id.substring(0, 4)}`,
           text,
-          timestamp
+          timestamp,
+          achievements: achievements || [],
         });
       }
     });

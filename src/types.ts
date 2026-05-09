@@ -149,6 +149,18 @@ export interface Character {
   color?: string;
 }
 
+export const ACHIEVEMENTS = [
+  { id: 'first_win', name: 'First Blood', description: 'Win your first game.', icon: '🏆', type: 'milestone' },
+  { id: 'sniper', name: 'The Sniper', description: 'Win in under 15 moves.', icon: '🎯', type: 'performance' },
+  { id: 'untouchable', name: 'Untouchable', description: 'Reach 1500 ELO.', icon: '👑', type: 'rank' },
+  { id: 'veteran', name: 'Veteran', description: 'Play 100 online games.', icon: '⚔️', type: 'milestone' },
+];
+
+export interface UserAchievement {
+  id: string;
+  unlockedAt: number;
+}
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -159,6 +171,18 @@ export interface UserProfile {
   customSkins: Skin[];
   selectedCharacterId: string;
   selectedSkinId: SkinId;
+  zenCoins: number;
+  unlockedSkins: SkinId[];
+  unlockedCharacters: string[];
+  unlockedSounds: string[];
+  achievements: UserAchievement[];
+  selectedSound?: string;
+  seasonRankings?: {
+    season: number;
+    title: string;
+    rank: string;
+    elo: number;
+  }[];
   stats?: {
     wins: number;
     losses: number;
