@@ -135,7 +135,7 @@ export function CustomSkinDesigner({ onClose, onSave }: CustomSkinDesignerProps)
             disabled={!newSkinName.trim()}
             className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Save Skin Design
+            Save Theme Design
           </button>
         </div>
       </motion.div>

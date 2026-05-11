@@ -40,6 +40,9 @@ export const getNextRank = (elo: number) => {
   return null;
 };
 
+export * from './skinsDB';
+import { THEMED_SKINS } from './skinsDB';
+
 export type SkinId = string;
 
 export type UiStyle = 'modern' | 'pixel' | 'zen' | 'cyberpunk' | 'monochrome' | 'retro' | 'midnight' | 'nature' | 'terminal' | 'bubblegum';
@@ -53,6 +56,9 @@ export interface Skin {
   whiteStone: string; 
   description: string;
   isCustom?: boolean;
+  tier?: string;
+  price?: number;
+  serialNumber?: string;
 }
 
 export const SKINS: Skin[] = [
@@ -139,6 +145,8 @@ export const SKINS: Skin[] = [
   }
 ];
 
+export const ALL_SKINS: Skin[] = [...SKINS, ...THEMED_SKINS];
+
 export interface Character {
   id: string;
   name: string;
@@ -147,6 +155,8 @@ export interface Character {
   defaultSkin: SkinId;
   isCustom?: boolean;
   color?: string;
+  tier?: 'Classic' | 'Silver' | 'Gold' | 'Diamond' | 'Platinum';
+  price?: number;
 }
 
 export const ACHIEVEMENTS = [
@@ -195,118 +205,118 @@ export interface UserProfile {
 }
 
 export const CHARACTERS: Character[] = [
-  { id: 'master_lin', name: 'Wei Lin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=MasterLin&backgroundColor=b6e3f4', bio: 'A legendary master who listens to the stones.', defaultSkin: 'classic', color: 'emerald' },
-  { id: 'cyber_x', name: 'Unit-734', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=CyberX&backgroundColor=c0aede', bio: 'Calculates 14 million outcomes per microsecond.', defaultSkin: 'neon', color: 'cyan' },
-  { id: 'sage_elara', name: 'Sage Elara', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=SageElara&backgroundColor=1e293b', bio: 'Harnesses the celestial energy of the Midnight Gold board.', defaultSkin: 'midnight', color: 'amber' },
-  { id: 'jade_weaver', name: 'Jade Weaver', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=JadeWeaver&backgroundColor=064e3b', bio: 'Patterns her moves after the growth of the deep forest.', defaultSkin: 'forest', color: 'emerald' },
-  { id: 'crimson_king', name: 'Crimson King', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=CrimsonKing&backgroundColor=7f1d1d', bio: 'Dominates with a bold, aggressive style on the Imperial board.', defaultSkin: 'ruby', color: 'rose' },
-  { id: 'retro_rex', name: 'Retro Rex', avatar: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=RetroRex&backgroundColor=000000', bio: 'A hero from an 8-bit era. High score is his only goal.', defaultSkin: 'pixel', color: 'yellow' },
-  { id: 'nature_spirit', name: 'Elara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=NatureSpirit&backgroundColor=ffdfbf', bio: 'Plays entirely based on the energy of the wind.', defaultSkin: 'wooden', color: 'green' },
+  { id: 'master_lin', name: 'Wei Lin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=MasterLin&backgroundColor=b6e3f4', bio: 'A legendary master who listens to the stones.', defaultSkin: 'classic', color: 'emerald', tier: 'Classic', price: 100 },
+  { id: 'cyber_x', name: 'Unit-734', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=CyberX&backgroundColor=c0aede', bio: 'Calculates 14 million outcomes per microsecond.', defaultSkin: 'neon', color: 'cyan', tier: 'Classic', price: 100 },
+  { id: 'sage_elara', name: 'Sage Elara', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=SageElara&backgroundColor=1e293b', bio: 'Harnesses the celestial energy of the Midnight Gold board.', defaultSkin: 'midnight', color: 'amber', tier: 'Classic', price: 100 },
+  { id: 'jade_weaver', name: 'Jade Weaver', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=JadeWeaver&backgroundColor=064e3b', bio: 'Patterns her moves after the growth of the deep forest.', defaultSkin: 'forest', color: 'emerald', tier: 'Classic', price: 100 },
+  { id: 'crimson_king', name: 'Crimson King', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=CrimsonKing&backgroundColor=7f1d1d', bio: 'Dominates with a bold, aggressive style on the Imperial board.', defaultSkin: 'ruby', color: 'rose', tier: 'Classic', price: 100 },
+  { id: 'retro_rex', name: 'Retro Rex', avatar: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=RetroRex&backgroundColor=000000', bio: 'A hero from an 8-bit era. High score is his only goal.', defaultSkin: 'pixel', color: 'yellow', tier: 'Classic', price: 100 },
+  { id: 'nature_spirit', name: 'Elara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=NatureSpirit&backgroundColor=ffdfbf', bio: 'Plays entirely based on the energy of the wind.', defaultSkin: 'wooden', color: 'green', tier: 'Classic', price: 100 },
   // 25 Male Characters (using micah)
-  { id: 'm_guerrier', name: 'Gunnar', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gunnar&backgroundColor=ffdfbf', bio: 'Strikes the board like thunder. Fear his offensive sweeps.', defaultSkin: 'classic', color: 'red' },
-  { id: 'm_aventurier', name: 'Finn', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Finn&backgroundColor=b6e3f4', bio: 'A drifter who picks up new tactics in every tavern.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'm_philosophe', name: 'Théo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Théo&backgroundColor=c0aede', bio: 'Believes that every stone placed is a question asked.', defaultSkin: 'minimal', color: 'blue' },
-  { id: 'm_scientifique', name: 'Albert', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Albert&backgroundColor=d1d4f9', bio: 'The board is just a matrix of probabilities to him.', defaultSkin: 'glass', color: 'teal' },
-  { id: 'm_businessman', name: 'Richard', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Richard&backgroundColor=ffd5dc', bio: 'Always seals the deal. Treats every game like an acquisition.', defaultSkin: 'classic', color: 'gray' },
-  { id: 'm_star', name: 'Leonardo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Leonardo&backgroundColor=ffdfbf', bio: 'Needs to win with style to keep the paparazzi happy.', defaultSkin: 'neon', color: 'gold' },
-  { id: 'm_footballeur', name: 'Cristiano', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Cristiano&backgroundColor=b6e3f4', bio: 'Treats the Gomoku board like a championship final.', defaultSkin: 'classic', color: 'green' },
-  { id: 'm_basketteur', name: 'Michael', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Michael&backgroundColor=c0aede', bio: 'Never misses the final shot. Known for late-game comebacks.', defaultSkin: 'classic', color: 'orange' },
-  { id: 'm_sportif', name: 'Usain', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Usain&backgroundColor=d1d4f9', bio: 'Plays so fast you won\'t even see the trap forming.', defaultSkin: 'wooden', color: 'yellow' },
-  { id: 'm_chevalier', name: 'Arthur', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Arthur&backgroundColor=ffd5dc', bio: 'A noble player who never uses deceptive tricks.', defaultSkin: 'classic', color: 'silver' },
-  { id: 'm_ninja', name: 'Hanzo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Hanzo&backgroundColor=ffdfbf', bio: 'You\'ll only realize you lost when it\'s already over.', defaultSkin: 'neon', color: 'purple' },
-  { id: 'm_samourai', name: 'Kenji', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Kenji&backgroundColor=b6e3f4', bio: 'Absolute focus. His cuts are clean and final.', defaultSkin: 'wooden', color: 'crimson' },
-  { id: 'm_pirate', name: 'Jack', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Jack&backgroundColor=c0aede', bio: 'Rules? Those are more like guidelines to him.', defaultSkin: 'wooden', color: 'brown' },
-  { id: 'm_astronaute', name: 'Neil', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Neil&backgroundColor=d1d4f9', bio: 'Used to playing in zero gravity. Thinks in 3D.', defaultSkin: 'glass', color: 'blue' },
-  { id: 'm_detective', name: 'Sherlock', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Sherlock&backgroundColor=ffd5dc', bio: 'He has already deduced your next seven moves.', defaultSkin: 'minimal', color: 'brown' },
-  { id: 'm_chef', name: 'Gordon', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gordon&backgroundColor=ffdfbf', bio: 'If your strategy is raw, he will absolutely roast you.', defaultSkin: 'classic', color: 'white' },
-  { id: 'm_docteur', name: 'Gregory', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gregory&backgroundColor=b6e3f4', bio: 'Diagnoses the weaknesses in your formation instantly.', defaultSkin: 'glass', color: 'blue' },
-  { id: 'm_pilote', name: 'Maverick', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Maverick&backgroundColor=c0aede', bio: 'Loves entering the danger zone. Extremely aggressive.', defaultSkin: 'neon', color: 'sky' },
-  { id: 'm_artiste', name: 'Vincent', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Vincent&backgroundColor=d1d4f9', bio: 'Paints a masterpiece with his stones. Rarely plays conventionally.', defaultSkin: 'minimal', color: 'yellow' },
-  { id: 'm_musicien', name: 'Wolfgang', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Wolfgang&backgroundColor=ffd5dc', bio: 'Finds the musical rhythm in the clack of the stones.', defaultSkin: 'classic', color: 'purple' },
-  { id: 'm_magicien', name: 'Merlin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Merlin&backgroundColor=ffdfbf', bio: 'Seems to magically summon intersecting lines out of nowhere.', defaultSkin: 'neon', color: 'indigo' },
-  { id: 'm_roi', name: 'Louis', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Louis&backgroundColor=b6e3f4', bio: 'Expects you to let him win, but plays flawlessly anyway.', defaultSkin: 'classic', color: 'gold' },
-  { id: 'm_hacker', name: 'Neo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Neo&backgroundColor=c0aede', bio: 'He sees the code behind the Gomoku matrix.', defaultSkin: 'neon', color: 'lime' },
-  { id: 'm_moine', name: 'Tenzin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Tenzin&backgroundColor=d1d4f9', bio: 'Unbothered by threats. He plays with inner peace.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'm_chasseur', name: 'Orion', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Orion&backgroundColor=ffd5dc', bio: 'Patiently waits in the shadows for you to make a mistake.', defaultSkin: 'wooden', color: 'green' },
+  { id: 'm_guerrier', name: 'Gunnar', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gunnar&backgroundColor=ffdfbf', bio: 'Strikes the board like thunder. Fear his offensive sweeps.', defaultSkin: 'classic', color: 'red', tier: 'Classic', price: 100 },
+  { id: 'm_aventurier', name: 'Finn', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Finn&backgroundColor=b6e3f4', bio: 'A drifter who picks up new tactics in every tavern.', defaultSkin: 'wooden', color: 'orange', tier: 'Classic', price: 100 },
+  { id: 'm_philosophe', name: 'Théo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Théo&backgroundColor=c0aede', bio: 'Believes that every stone placed is a question asked.', defaultSkin: 'minimal', color: 'blue', tier: 'Classic', price: 100 },
+  { id: 'm_scientifique', name: 'Albert', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Albert&backgroundColor=d1d4f9', bio: 'The board is just a matrix of probabilities to him.', defaultSkin: 'glass', color: 'teal', tier: 'Classic', price: 100 },
+  { id: 'm_businessman', name: 'Richard', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Richard&backgroundColor=ffd5dc', bio: 'Always seals the deal. Treats every game like an acquisition.', defaultSkin: 'classic', color: 'gray', tier: 'Classic', price: 100 },
+  { id: 'm_star', name: 'Leonardo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Leonardo&backgroundColor=ffdfbf', bio: 'Needs to win with style to keep the paparazzi happy.', defaultSkin: 'neon', color: 'gold', tier: 'Classic', price: 100 },
+  { id: 'm_footballeur', name: 'Cristiano', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Cristiano&backgroundColor=b6e3f4', bio: 'Treats the Gomoku board like a championship final.', defaultSkin: 'classic', color: 'green', tier: 'Classic', price: 100 },
+  { id: 'm_basketteur', name: 'Michael', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Michael&backgroundColor=c0aede', bio: 'Never misses the final shot. Known for late-game comebacks.', defaultSkin: 'classic', color: 'orange', tier: 'Classic', price: 100 },
+  { id: 'm_sportif', name: 'Usain', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Usain&backgroundColor=d1d4f9', bio: 'Plays so fast you won\'t even see the trap forming.', defaultSkin: 'wooden', color: 'yellow', tier: 'Classic', price: 100 },
+  { id: 'm_chevalier', name: 'Arthur', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Arthur&backgroundColor=ffd5dc', bio: 'A noble player who never uses deceptive tricks.', defaultSkin: 'classic', color: 'silver', tier: 'Classic', price: 100 },
+  { id: 'm_ninja', name: 'Hanzo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Hanzo&backgroundColor=ffdfbf', bio: 'You\'ll only realize you lost when it\'s already over.', defaultSkin: 'neon', color: 'purple', tier: 'Classic', price: 100 },
+  { id: 'm_samourai', name: 'Kenji', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Kenji&backgroundColor=b6e3f4', bio: 'Absolute focus. His cuts are clean and final.', defaultSkin: 'wooden', color: 'crimson', tier: 'Classic', price: 100 },
+  { id: 'm_pirate', name: 'Jack', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Jack&backgroundColor=c0aede', bio: 'Rules? Those are more like guidelines to him.', defaultSkin: 'wooden', color: 'brown', tier: 'Classic', price: 100 },
+  { id: 'm_astronaute', name: 'Neil', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Neil&backgroundColor=d1d4f9', bio: 'Used to playing in zero gravity. Thinks in 3D.', defaultSkin: 'glass', color: 'blue', tier: 'Classic', price: 100 },
+  { id: 'm_detective', name: 'Sherlock', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Sherlock&backgroundColor=ffd5dc', bio: 'He has already deduced your next seven moves.', defaultSkin: 'minimal', color: 'brown', tier: 'Classic', price: 100 },
+  { id: 'm_chef', name: 'Gordon', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gordon&backgroundColor=ffdfbf', bio: 'If your strategy is raw, he will absolutely roast you.', defaultSkin: 'classic', color: 'white', tier: 'Classic', price: 100 },
+  { id: 'm_docteur', name: 'Gregory', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Gregory&backgroundColor=b6e3f4', bio: 'Diagnoses the weaknesses in your formation instantly.', defaultSkin: 'glass', color: 'blue', tier: 'Classic', price: 100 },
+  { id: 'm_pilote', name: 'Maverick', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Maverick&backgroundColor=c0aede', bio: 'Loves entering the danger zone. Extremely aggressive.', defaultSkin: 'neon', color: 'sky', tier: 'Classic', price: 100 },
+  { id: 'm_artiste', name: 'Vincent', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Vincent&backgroundColor=d1d4f9', bio: 'Paints a masterpiece with his stones. Rarely plays conventionally.', defaultSkin: 'minimal', color: 'yellow', tier: 'Classic', price: 100 },
+  { id: 'm_musicien', name: 'Wolfgang', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Wolfgang&backgroundColor=ffd5dc', bio: 'Finds the musical rhythm in the clack of the stones.', defaultSkin: 'classic', color: 'purple', tier: 'Classic', price: 100 },
+  { id: 'm_magicien', name: 'Merlin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Merlin&backgroundColor=ffdfbf', bio: 'Seems to magically summon intersecting lines out of nowhere.', defaultSkin: 'neon', color: 'indigo', tier: 'Classic', price: 100 },
+  { id: 'm_roi', name: 'Louis', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Louis&backgroundColor=b6e3f4', bio: 'Expects you to let him win, but plays flawlessly anyway.', defaultSkin: 'classic', color: 'gold', tier: 'Classic', price: 100 },
+  { id: 'm_hacker', name: 'Neo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Neo&backgroundColor=c0aede', bio: 'He sees the code behind the Gomoku matrix.', defaultSkin: 'neon', color: 'lime', tier: 'Classic', price: 100 },
+  { id: 'm_moine', name: 'Tenzin', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Tenzin&backgroundColor=d1d4f9', bio: 'Unbothered by threats. He plays with inner peace.', defaultSkin: 'wooden', color: 'orange', tier: 'Classic', price: 100 },
+  { id: 'm_chasseur', name: 'Orion', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Orion&backgroundColor=ffd5dc', bio: 'Patiently waits in the shadows for you to make a mistake.', defaultSkin: 'wooden', color: 'green', tier: 'Silver', price: 500 },
   // 25 Female Characters (using lorelei)
-  { id: 'f_guerriere', name: 'Lagertha', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Lagertha&backgroundColor=ffdfbf', bio: 'Shieldmaiden who forms unbreakable defensive walls.', defaultSkin: 'classic', color: 'red' },
-  { id: 'f_aventuriere', name: 'Lara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Lara&backgroundColor=b6e3f4', bio: 'Explores the corners of the board pushing boundaries.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'f_philosophe', name: 'Hypatie', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Hypatie&backgroundColor=c0aede', bio: 'Studies the ancient scrolls of opening patterns.', defaultSkin: 'minimal', color: 'blue' },
-  { id: 'f_scientifique', name: 'Marie', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Marie&backgroundColor=d1d4f9', bio: 'Discovered a radioactive guaranteed win tactic.', defaultSkin: 'glass', color: 'teal' },
-  { id: 'f_businesswoman', name: 'Miranda', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Miranda&backgroundColor=ffd5dc', bio: 'Intimidating presence. She thrives under high pressure.', defaultSkin: 'classic', color: 'gray' },
-  { id: 'f_star', name: 'Marilyn', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Marilyn&backgroundColor=ffdfbf', bio: 'Distracts opponents with her dazzling charm.', defaultSkin: 'neon', color: 'gold' },
-  { id: 'f_footballeuse', name: 'Megan', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Megan&backgroundColor=b6e3f4', bio: 'Loves setting up the perfect assist for herself.', defaultSkin: 'classic', color: 'green' },
-  { id: 'f_basketteuse', name: 'Diana', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Diana&backgroundColor=c0aede', bio: 'Bounces around the board to confuse her foes.', defaultSkin: 'classic', color: 'orange' },
-  { id: 'f_sportive', name: 'Serena', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Serena&backgroundColor=d1d4f9', bio: 'Her opening serve is legendary and hard to return.', defaultSkin: 'wooden', color: 'yellow' },
-  { id: 'f_chevaliere', name: 'Jeanne', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Jeanne&backgroundColor=ffd5dc', bio: 'Fiercely loyal to her strategy, even when losing.', defaultSkin: 'classic', color: 'silver' },
-  { id: 'f_ninja', name: 'Ayane', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Ayane&backgroundColor=ffdfbf', bio: 'A master of stealth placements and sudden attacks.', defaultSkin: 'neon', color: 'purple' },
-  { id: 'f_samourai', name: 'Tomoe', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Tomoe&backgroundColor=b6e3f4', bio: 'Graceful yet lethal. Every stone is perfectly placed.', defaultSkin: 'wooden', color: 'crimson' },
-  { id: 'f_pirate', name: 'Anne', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Anne&backgroundColor=c0aede', bio: 'Loves stealing the initiative from the starting player.', defaultSkin: 'wooden', color: 'brown' },
-  { id: 'f_astronaute', name: 'Valentina', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Valentina&backgroundColor=d1d4f9', bio: 'Her tactics are truly out of this world.', defaultSkin: 'glass', color: 'blue' },
-  { id: 'f_detective', name: 'Nancy', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Nancy&backgroundColor=ffd5dc', bio: 'Investigates your bluffs and finds the truth.', defaultSkin: 'minimal', color: 'brown' },
-  { id: 'f_cheffe', name: 'Julia', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Julia&backgroundColor=ffdfbf', bio: 'Bakes up a sweet victory slowly and surely.', defaultSkin: 'classic', color: 'white' },
-  { id: 'f_docteur', name: 'Meredith', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Meredith&backgroundColor=b6e3f4', bio: 'Her surgical strikes to block threats are unmatched.', defaultSkin: 'glass', color: 'blue' },
-  { id: 'f_pilote', name: 'Amelia', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Amelia&backgroundColor=c0aede', bio: 'Flies high above the board to see entirely new lines.', defaultSkin: 'neon', color: 'sky' },
-  { id: 'f_artiste', name: 'Frida', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Frida&backgroundColor=d1d4f9', bio: 'Expresses her emotions through chaotic formations.', defaultSkin: 'minimal', color: 'yellow' },
-  { id: 'f_musicienne', name: 'Clara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Clara&backgroundColor=ffd5dc', bio: 'Plays a symphony of consecutive uninterrupted threats.', defaultSkin: 'classic', color: 'purple' },
-  { id: 'f_magicienne', name: 'Morgane', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Morgane&backgroundColor=ffdfbf', bio: 'Casts illusions to make you block the wrong path.', defaultSkin: 'neon', color: 'indigo' },
-  { id: 'f_reine', name: 'Victoria', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Victoria&backgroundColor=b6e3f4', bio: 'Has an aura that commands respect on the board.', defaultSkin: 'classic', color: 'gold' },
-  { id: 'f_hacker', name: 'Trinity', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Trinity&backgroundColor=c0aede', bio: 'Bypasses standard defenses with ease.', defaultSkin: 'neon', color: 'lime' },
-  { id: 'f_moniale', name: 'Teresa', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Teresa&backgroundColor=d1d4f9', bio: 'Never gets frustrated, even when cornered.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'f_chasseuse', name: 'Artemis', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Artemis&backgroundColor=ffd5dc', bio: 'Draws her bow and secures the win from afar.', defaultSkin: 'wooden', color: 'green' },
+  { id: 'f_guerriere', name: 'Lagertha', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Lagertha&backgroundColor=ffdfbf', bio: 'Shieldmaiden who forms unbreakable defensive walls.', defaultSkin: 'classic', color: 'red', tier: 'Silver', price: 500 },
+  { id: 'f_aventuriere', name: 'Lara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Lara&backgroundColor=b6e3f4', bio: 'Explores the corners of the board pushing boundaries.', defaultSkin: 'wooden', color: 'orange', tier: 'Silver', price: 500 },
+  { id: 'f_philosophe', name: 'Hypatie', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Hypatie&backgroundColor=c0aede', bio: 'Studies the ancient scrolls of opening patterns.', defaultSkin: 'minimal', color: 'blue', tier: 'Silver', price: 500 },
+  { id: 'f_scientifique', name: 'Marie', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Marie&backgroundColor=d1d4f9', bio: 'Discovered a radioactive guaranteed win tactic.', defaultSkin: 'glass', color: 'teal', tier: 'Silver', price: 500 },
+  { id: 'f_businesswoman', name: 'Miranda', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Miranda&backgroundColor=ffd5dc', bio: 'Intimidating presence. She thrives under high pressure.', defaultSkin: 'classic', color: 'gray', tier: 'Silver', price: 500 },
+  { id: 'f_star', name: 'Marilyn', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Marilyn&backgroundColor=ffdfbf', bio: 'Distracts opponents with her dazzling charm.', defaultSkin: 'neon', color: 'gold', tier: 'Silver', price: 500 },
+  { id: 'f_footballeuse', name: 'Megan', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Megan&backgroundColor=b6e3f4', bio: 'Loves setting up the perfect assist for herself.', defaultSkin: 'classic', color: 'green', tier: 'Silver', price: 500 },
+  { id: 'f_basketteuse', name: 'Diana', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Diana&backgroundColor=c0aede', bio: 'Bounces around the board to confuse her foes.', defaultSkin: 'classic', color: 'orange', tier: 'Silver', price: 500 },
+  { id: 'f_sportive', name: 'Serena', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Serena&backgroundColor=d1d4f9', bio: 'Her opening serve is legendary and hard to return.', defaultSkin: 'wooden', color: 'yellow', tier: 'Silver', price: 500 },
+  { id: 'f_chevaliere', name: 'Jeanne', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Jeanne&backgroundColor=ffd5dc', bio: 'Fiercely loyal to her strategy, even when losing.', defaultSkin: 'classic', color: 'silver', tier: 'Silver', price: 500 },
+  { id: 'f_ninja', name: 'Ayane', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Ayane&backgroundColor=ffdfbf', bio: 'A master of stealth placements and sudden attacks.', defaultSkin: 'neon', color: 'purple', tier: 'Silver', price: 500 },
+  { id: 'f_samourai', name: 'Tomoe', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Tomoe&backgroundColor=b6e3f4', bio: 'Graceful yet lethal. Every stone is perfectly placed.', defaultSkin: 'wooden', color: 'crimson', tier: 'Silver', price: 500 },
+  { id: 'f_pirate', name: 'Anne', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Anne&backgroundColor=c0aede', bio: 'Loves stealing the initiative from the starting player.', defaultSkin: 'wooden', color: 'brown', tier: 'Silver', price: 500 },
+  { id: 'f_astronaute', name: 'Valentina', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Valentina&backgroundColor=d1d4f9', bio: 'Her tactics are truly out of this world.', defaultSkin: 'glass', color: 'blue', tier: 'Silver', price: 500 },
+  { id: 'f_detective', name: 'Nancy', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Nancy&backgroundColor=ffd5dc', bio: 'Investigates your bluffs and finds the truth.', defaultSkin: 'minimal', color: 'brown', tier: 'Silver', price: 500 },
+  { id: 'f_cheffe', name: 'Julia', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Julia&backgroundColor=ffdfbf', bio: 'Bakes up a sweet victory slowly and surely.', defaultSkin: 'classic', color: 'white', tier: 'Silver', price: 500 },
+  { id: 'f_docteur', name: 'Meredith', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Meredith&backgroundColor=b6e3f4', bio: 'Her surgical strikes to block threats are unmatched.', defaultSkin: 'glass', color: 'blue', tier: 'Silver', price: 500 },
+  { id: 'f_pilote', name: 'Amelia', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Amelia&backgroundColor=c0aede', bio: 'Flies high above the board to see entirely new lines.', defaultSkin: 'neon', color: 'sky', tier: 'Silver', price: 500 },
+  { id: 'f_artiste', name: 'Frida', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Frida&backgroundColor=d1d4f9', bio: 'Expresses her emotions through chaotic formations.', defaultSkin: 'minimal', color: 'yellow', tier: 'Silver', price: 500 },
+  { id: 'f_musicienne', name: 'Clara', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Clara&backgroundColor=ffd5dc', bio: 'Plays a symphony of consecutive uninterrupted threats.', defaultSkin: 'classic', color: 'purple', tier: 'Silver', price: 500 },
+  { id: 'f_magicienne', name: 'Morgane', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Morgane&backgroundColor=ffdfbf', bio: 'Casts illusions to make you block the wrong path.', defaultSkin: 'neon', color: 'indigo', tier: 'Silver', price: 500 },
+  { id: 'f_reine', name: 'Victoria', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Victoria&backgroundColor=b6e3f4', bio: 'Has an aura that commands respect on the board.', defaultSkin: 'classic', color: 'gold', tier: 'Silver', price: 500 },
+  { id: 'f_hacker', name: 'Trinity', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Trinity&backgroundColor=c0aede', bio: 'Bypasses standard defenses with ease.', defaultSkin: 'neon', color: 'lime', tier: 'Silver', price: 500 },
+  { id: 'f_moniale', name: 'Teresa', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Teresa&backgroundColor=d1d4f9', bio: 'Never gets frustrated, even when cornered.', defaultSkin: 'wooden', color: 'orange', tier: 'Silver', price: 500 },
+  { id: 'f_chasseuse', name: 'Artemis', avatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Artemis&backgroundColor=ffd5dc', bio: 'Draws her bow and secures the win from afar.', defaultSkin: 'wooden', color: 'green', tier: 'Silver', price: 500 },
   // Bob Cut Collection
-  { id: 'bob_1', name: 'Bobbie', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob1&baseColor=f87171&hair=bob', bio: 'Precision-cut moves for a precision-cut look.', defaultSkin: 'minimal', color: 'rose' },
-  { id: 'bob_2', name: 'Sleek Sarah', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob2&baseColor=60a5fa&hair=bob', bio: 'Aerodynamic hair for lightning-fast strategy.', defaultSkin: 'glass', color: 'blue' },
-  { id: 'bob_3', name: 'Autumn Bob', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob3&baseColor=fbbf24&hair=bob', bio: 'The colors of the falls, the strategy of the mountain.', defaultSkin: 'wooden', color: 'amber' },
-  { id: 'bob_4', name: 'Indigo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob4&baseColor=818cf8&hair=bob', bio: 'Deeply thoughtful, deeply stylish.', defaultSkin: 'neon', color: 'indigo' },
-  { id: 'bob_5', name: 'Jade', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob5&baseColor=34d399&hair=bob', bio: 'Green is the color of growth and victory.', defaultSkin: 'forest', color: 'emerald' },
+  { id: 'bob_1', name: 'Bobbie', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob1&baseColor=f87171&hair=bob', bio: 'Precision-cut moves for a precision-cut look.', defaultSkin: 'minimal', color: 'rose', tier: 'Silver', price: 500 },
+  { id: 'bob_2', name: 'Sleek Sarah', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob2&baseColor=60a5fa&hair=bob', bio: 'Aerodynamic hair for lightning-fast strategy.', defaultSkin: 'glass', color: 'blue', tier: 'Silver', price: 500 },
+  { id: 'bob_3', name: 'Autumn Bob', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob3&baseColor=fbbf24&hair=bob', bio: 'The colors of the falls, the strategy of the mountain.', defaultSkin: 'wooden', color: 'amber', tier: 'Silver', price: 500 },
+  { id: 'bob_4', name: 'Indigo', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob4&baseColor=818cf8&hair=bob', bio: 'Deeply thoughtful, deeply stylish.', defaultSkin: 'neon', color: 'indigo', tier: 'Silver', price: 500 },
+  { id: 'bob_5', name: 'Jade', avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Bob5&baseColor=34d399&hair=bob', bio: 'Green is the color of growth and victory.', defaultSkin: 'forest', color: 'emerald', tier: 'Silver', price: 500 },
 
   // Monster Horde (40 characters)
-  { id: 'mon_1', name: 'Blobbo', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Blobbo&backgroundColor=f43f5e', bio: 'A gelatinous genius from the red nebula.', defaultSkin: 'ruby', color: 'rose' },
-  { id: 'mon_2', name: 'Grumpus', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Grumpus&backgroundColor=1e293b', bio: 'Only happy when he is making your lives difficult.', defaultSkin: 'midnight', color: 'slate' },
-  { id: 'mon_3', name: 'Zorg', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Zorg&backgroundColor=9333ea', bio: 'Does not compute "loss". Only "total dominance".', defaultSkin: 'neon', color: 'purple' },
-  { id: 'mon_4', name: 'Eyeball', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Eyeball&backgroundColor=fbbf24', bio: 'Sees every potential line 50 moves ahead.', defaultSkin: 'minimal', color: 'amber' },
-  { id: 'mon_5', name: 'Spike', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Spike&backgroundColor=10b981', bio: 'Sharp moves and even sharper hardware.', defaultSkin: 'forest', color: 'emerald' },
-  { id: 'mon_6', name: 'Gloop', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Gloop&backgroundColor=0ea5e9', bio: 'Leaves a sticky trail of stones you can\'t ignore.', defaultSkin: 'glass', color: 'sky' },
-  { id: 'mon_7', name: 'Rusty', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Rusty&backgroundColor=ea580c', bio: 'An old machine with timeless tactical wisdom.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'mon_8', name: 'Pinky', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Pinky&backgroundColor=db2777', bio: 'Looks cute, plays like a devouring beast.', defaultSkin: 'pixel', color: 'pink' },
-  { id: 'mon_9', name: 'Shadow', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Shadow&backgroundColor=000000', bio: 'Emerges from the darkness to steal your win.', defaultSkin: 'midnight', color: 'black' },
-  { id: 'mon_10', name: 'Sparky', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Sparky&backgroundColor=eab308', bio: 'Highly energetic and unpredictable patterns.', defaultSkin: 'neon', color: 'yellow' },
-  { id: 'mon_11', name: 'Munch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Munch&backgroundColor=4f46e5', bio: 'Hungers for your stones. Don\'t leave gaps.', defaultSkin: 'classic', color: 'indigo' },
-  { id: 'mon_12', name: 'Blink', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Blink&backgroundColor=ef4444', bio: 'He is in three places on the board at once.', defaultSkin: 'neon', color: 'red' },
-  { id: 'mon_13', name: 'Goop', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Goop&backgroundColor=166534', bio: 'Slow, steady, and inevitable.', defaultSkin: 'forest', color: 'green' },
-  { id: 'mon_14', name: 'Clicker', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Clicker&backgroundColor=71717a', bio: 'Every move sounds like a mechanical clock.', defaultSkin: 'minimal', color: 'zinc' },
-  { id: 'mon_15', name: 'Beast', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Beast&backgroundColor=7c2d12', bio: 'Pure aggression. No defense, only attack.', defaultSkin: 'ruby', color: 'orange' },
-  { id: 'mon_16', name: 'Volt', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Volt&backgroundColor=2563eb', bio: 'Electrifying speed and shocking accuracy.', defaultSkin: 'neon', color: 'blue' },
-  { id: 'mon_17', name: 'Squelch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Squelch&backgroundColor=a21caf', bio: 'Don\'t slip on his unusual formations.', defaultSkin: 'glass', color: 'fuchsia' },
-  { id: 'mon_18', name: 'Tank', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Tank&backgroundColor=3f6212', bio: 'Immovable objects are its specialty.', defaultSkin: 'wooden', color: 'lime' },
-  { id: 'mon_19', name: 'Nibble', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Nibble&backgroundColor=be185d', bio: 'Eats away at your defense one stone at a time.', defaultSkin: 'pixel', color: 'pink' },
-  { id: 'mon_20', name: 'Turbo', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Turbo&backgroundColor=1d4ed8', bio: 'Optimized for 1,000 moves per second.', defaultSkin: 'neon', color: 'blue' },
-  { id: 'mon_21', name: 'Glitch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Glitch&backgroundColor=4338ca', bio: 'His moves shouldn\'t work, but they do.', defaultSkin: 'glass', color: 'indigo' },
-  { id: 'mon_22', name: 'Gear', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Gear&backgroundColor=374151', bio: 'A master of interlocking systems.', defaultSkin: 'classic', color: 'gray' },
-  { id: 'mon_23', name: 'Slime', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Slime&backgroundColor=15803d', bio: 'Adapts to any board shape instantly.', defaultSkin: 'forest', color: 'green' },
-  { id: 'mon_24', name: 'Circuit', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Circuit&backgroundColor=b91c1c', bio: 'Connected in ways you won\'t see coming.', defaultSkin: 'neon', color: 'red' },
-  { id: 'mon_25', name: 'Wiggler', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Wiggler&backgroundColor=7e22ce', bio: 'Slithers through your lines with ease.', defaultSkin: 'neon', color: 'purple' },
-  { id: 'mon_26', name: 'Bolt', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Bolt&backgroundColor=0369a1', bio: 'Strikes once and ends the game.', defaultSkin: 'glass', color: 'sky' },
-  { id: 'mon_27', name: 'Ooze', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Ooze&backgroundColor=4d7c0f', bio: 'Slowly suffocates your board presence.', defaultSkin: 'forest', color: 'lime' },
-  { id: 'mon_28', name: 'Chip', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Chip&backgroundColor=b45309', bio: 'Small size, massive processing power.', defaultSkin: 'pixel', color: 'amber' },
-  { id: 'mon_29', name: 'Chomp', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Chomp&backgroundColor=9f1239', bio: 'Takes what he wants, especially win lines.', defaultSkin: 'ruby', color: 'rose' },
-  { id: 'mon_30', name: 'Signal', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Signal&backgroundColor=0e7490', bio: 'Transmits winning vibes only.', defaultSkin: 'minimal', color: 'cyan' },
-  { id: 'mon_31', name: 'Troll', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Troll&backgroundColor=431407', bio: 'Loves blocking you just for the fun of it.', defaultSkin: 'wooden', color: 'brown' },
-  { id: 'mon_32', name: 'Servo', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Servo&backgroundColor=065f46', bio: 'Smooth and consistent performance.', defaultSkin: 'minimal', color: 'emerald' },
-  { id: 'mon_33', name: 'Gargoyle', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Gargoyle&backgroundColor=334155', bio: 'Stony silence and cold, hard calculations.', defaultSkin: 'midnight', color: 'slate' },
-  { id: 'mon_34', name: 'Logic', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Logic&backgroundColor=1e1b4b', bio: 'Pure mathematical reasoning.', defaultSkin: 'minimal', color: 'indigo' },
-  { id: 'mon_35', name: 'Crusher', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Crusher&backgroundColor=991b1b', bio: 'He doesn\'t just win; he dominates.', defaultSkin: 'ruby', color: 'red' },
-  { id: 'mon_36', name: 'Kernel', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Kernel&backgroundColor=374151', bio: 'At the heart of every machine.', defaultSkin: 'minimal', color: 'gray' },
-  { id: 'mon_37', name: 'Spook', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Spook&backgroundColor=525252', bio: 'Now you see his win line, now you don\'t.', defaultSkin: 'midnight', color: 'zinc' },
-  { id: 'mon_38', name: 'Crank', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Crank&backgroundColor=78350f', bio: 'Always turning the gears of destiny.', defaultSkin: 'wooden', color: 'orange' },
-  { id: 'mon_39', name: 'Puff', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Puff&backgroundColor=be123c', bio: 'Soft outside, titanium logic inside.', defaultSkin: 'pixel', color: 'rose' },
-  { id: 'mon_40', name: 'Omega', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Omega&backgroundColor=000000', bio: 'The binary beginning and end.', defaultSkin: 'neon', color: 'white' },
+  { id: 'mon_1', name: 'Blobbo', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Blobbo&backgroundColor=f43f5e', bio: 'A gelatinous genius from the red nebula.', defaultSkin: 'ruby', color: 'rose', tier: 'Gold', price: 1500 },
+  { id: 'mon_2', name: 'Grumpus', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Grumpus&backgroundColor=1e293b', bio: 'Only happy when he is making your lives difficult.', defaultSkin: 'midnight', color: 'slate', tier: 'Gold', price: 1500 },
+  { id: 'mon_3', name: 'Zorg', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Zorg&backgroundColor=9333ea', bio: 'Does not compute "loss". Only "total dominance".', defaultSkin: 'neon', color: 'purple', tier: 'Gold', price: 1500 },
+  { id: 'mon_4', name: 'Eyeball', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Eyeball&backgroundColor=fbbf24', bio: 'Sees every potential line 50 moves ahead.', defaultSkin: 'minimal', color: 'amber', tier: 'Gold', price: 1500 },
+  { id: 'mon_5', name: 'Spike', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Spike&backgroundColor=10b981', bio: 'Sharp moves and even sharper hardware.', defaultSkin: 'forest', color: 'emerald', tier: 'Gold', price: 1500 },
+  { id: 'mon_6', name: 'Gloop', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Gloop&backgroundColor=0ea5e9', bio: 'Leaves a sticky trail of stones you can\'t ignore.', defaultSkin: 'glass', color: 'sky', tier: 'Gold', price: 1500 },
+  { id: 'mon_7', name: 'Rusty', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Rusty&backgroundColor=ea580c', bio: 'An old machine with timeless tactical wisdom.', defaultSkin: 'wooden', color: 'orange', tier: 'Gold', price: 1500 },
+  { id: 'mon_8', name: 'Pinky', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Pinky&backgroundColor=db2777', bio: 'Looks cute, plays like a devouring beast.', defaultSkin: 'pixel', color: 'pink', tier: 'Gold', price: 1500 },
+  { id: 'mon_9', name: 'Shadow', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Shadow&backgroundColor=000000', bio: 'Emerges from the darkness to steal your win.', defaultSkin: 'midnight', color: 'black', tier: 'Gold', price: 1500 },
+  { id: 'mon_10', name: 'Sparky', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Sparky&backgroundColor=eab308', bio: 'Highly energetic and unpredictable patterns.', defaultSkin: 'neon', color: 'yellow', tier: 'Gold', price: 1500 },
+  { id: 'mon_11', name: 'Munch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Munch&backgroundColor=4f46e5', bio: 'Hungers for your stones. Don\'t leave gaps.', defaultSkin: 'classic', color: 'indigo', tier: 'Gold', price: 1500 },
+  { id: 'mon_12', name: 'Blink', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Blink&backgroundColor=ef4444', bio: 'He is in three places on the board at once.', defaultSkin: 'neon', color: 'red', tier: 'Gold', price: 1500 },
+  { id: 'mon_13', name: 'Goop', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Goop&backgroundColor=166534', bio: 'Slow, steady, and inevitable.', defaultSkin: 'forest', color: 'green', tier: 'Gold', price: 1500 },
+  { id: 'mon_14', name: 'Clicker', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Clicker&backgroundColor=71717a', bio: 'Every move sounds like a mechanical clock.', defaultSkin: 'minimal', color: 'zinc', tier: 'Gold', price: 1500 },
+  { id: 'mon_15', name: 'Beast', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Beast&backgroundColor=7c2d12', bio: 'Pure aggression. No defense, only attack.', defaultSkin: 'ruby', color: 'orange', tier: 'Gold', price: 1500 },
+  { id: 'mon_16', name: 'Volt', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Volt&backgroundColor=2563eb', bio: 'Electrifying speed and shocking accuracy.', defaultSkin: 'neon', color: 'blue', tier: 'Gold', price: 1500 },
+  { id: 'mon_17', name: 'Squelch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Squelch&backgroundColor=a21caf', bio: 'Don\'t slip on his unusual formations.', defaultSkin: 'glass', color: 'fuchsia', tier: 'Gold', price: 1500 },
+  { id: 'mon_18', name: 'Tank', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Tank&backgroundColor=3f6212', bio: 'Immovable objects are its specialty.', defaultSkin: 'wooden', color: 'lime', tier: 'Gold', price: 1500 },
+  { id: 'mon_19', name: 'Nibble', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Nibble&backgroundColor=be185d', bio: 'Eats away at your defense one stone at a time.', defaultSkin: 'pixel', color: 'pink', tier: 'Gold', price: 1500 },
+  { id: 'mon_20', name: 'Turbo', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Turbo&backgroundColor=1d4ed8', bio: 'Optimized for 1,000 moves per second.', defaultSkin: 'neon', color: 'blue', tier: 'Gold', price: 1500 },
+  { id: 'mon_21', name: 'Glitch', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Glitch&backgroundColor=4338ca', bio: 'His moves shouldn\'t work, but they do.', defaultSkin: 'glass', color: 'indigo', tier: 'Diamond', price: 3000 },
+  { id: 'mon_22', name: 'Gear', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Gear&backgroundColor=374151', bio: 'A master of interlocking systems.', defaultSkin: 'classic', color: 'gray', tier: 'Diamond', price: 3000 },
+  { id: 'mon_23', name: 'Slime', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Slime&backgroundColor=15803d', bio: 'Adapts to any board shape instantly.', defaultSkin: 'forest', color: 'green', tier: 'Diamond', price: 3000 },
+  { id: 'mon_24', name: 'Circuit', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Circuit&backgroundColor=b91c1c', bio: 'Connected in ways you won\'t see coming.', defaultSkin: 'neon', color: 'red', tier: 'Diamond', price: 3000 },
+  { id: 'mon_25', name: 'Wiggler', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Wiggler&backgroundColor=7e22ce', bio: 'Slithers through your lines with ease.', defaultSkin: 'neon', color: 'purple', tier: 'Diamond', price: 3000 },
+  { id: 'mon_26', name: 'Bolt', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Bolt&backgroundColor=0369a1', bio: 'Strikes once and ends the game.', defaultSkin: 'glass', color: 'sky', tier: 'Diamond', price: 3000 },
+  { id: 'mon_27', name: 'Ooze', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Ooze&backgroundColor=4d7c0f', bio: 'Slowly suffocates your board presence.', defaultSkin: 'forest', color: 'lime', tier: 'Diamond', price: 3000 },
+  { id: 'mon_28', name: 'Chip', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Chip&backgroundColor=b45309', bio: 'Small size, massive processing power.', defaultSkin: 'pixel', color: 'amber', tier: 'Diamond', price: 3000 },
+  { id: 'mon_29', name: 'Chomp', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Chomp&backgroundColor=9f1239', bio: 'Takes what he wants, especially win lines.', defaultSkin: 'ruby', color: 'rose', tier: 'Diamond', price: 3000 },
+  { id: 'mon_30', name: 'Signal', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Signal&backgroundColor=0e7490', bio: 'Transmits winning vibes only.', defaultSkin: 'minimal', color: 'cyan', tier: 'Diamond', price: 3000 },
+  { id: 'mon_31', name: 'Troll', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Troll&backgroundColor=431407', bio: 'Loves blocking you just for the fun of it.', defaultSkin: 'wooden', color: 'brown', tier: 'Diamond', price: 3000 },
+  { id: 'mon_32', name: 'Servo', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Servo&backgroundColor=065f46', bio: 'Smooth and consistent performance.', defaultSkin: 'minimal', color: 'emerald', tier: 'Diamond', price: 3000 },
+  { id: 'mon_33', name: 'Gargoyle', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Gargoyle&backgroundColor=334155', bio: 'Stony silence and cold, hard calculations.', defaultSkin: 'midnight', color: 'slate', tier: 'Diamond', price: 3000 },
+  { id: 'mon_34', name: 'Logic', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Logic&backgroundColor=1e1b4b', bio: 'Pure mathematical reasoning.', defaultSkin: 'minimal', color: 'indigo', tier: 'Diamond', price: 3000 },
+  { id: 'mon_35', name: 'Crusher', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Crusher&backgroundColor=991b1b', bio: 'He doesn\'t just win; he dominates.', defaultSkin: 'ruby', color: 'red', tier: 'Diamond', price: 3000 },
+  { id: 'mon_36', name: 'Kernel', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Kernel&backgroundColor=374151', bio: 'At the heart of every machine.', defaultSkin: 'minimal', color: 'gray', tier: 'Platinum', price: 5000 },
+  { id: 'mon_37', name: 'Spook', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Spook&backgroundColor=525252', bio: 'Now you see his win line, now you don\'t.', defaultSkin: 'midnight', color: 'zinc', tier: 'Platinum', price: 5000 },
+  { id: 'mon_38', name: 'Crank', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Crank&backgroundColor=78350f', bio: 'Always turning the gears of destiny.', defaultSkin: 'wooden', color: 'orange', tier: 'Platinum', price: 5000 },
+  { id: 'mon_39', name: 'Puff', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=Puff&backgroundColor=be123c', bio: 'Soft outside, titanium logic inside.', defaultSkin: 'pixel', color: 'rose', tier: 'Platinum', price: 5000 },
+  { id: 'mon_40', name: 'Omega', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=Omega&backgroundColor=000000', bio: 'The binary beginning and end.', defaultSkin: 'neon', color: 'white', tier: 'Platinum', price: 5000 },
 
   // Mixed Bob Monsters
-  { id: 'mon_bob_1', name: 'B-Monster', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster1&backgroundColor=f43f5e&hair=bob', bio: 'A monster with a permit for style.', defaultSkin: 'ruby', color: 'rose' },
-  { id: 'mon_bob_2', name: 'Cuty-Scary', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=BobMonster2&backgroundColor=10b981&hair=bob', bio: 'The bob cut makes the horns look fashionable.', defaultSkin: 'forest', color: 'emerald' },
-  { id: 'mon_bob_3', name: 'Void Bob', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster3&backgroundColor=1e293b&hair=bob', bio: 'The stylish end of the universe.', defaultSkin: 'midnight', color: 'slate' },
-  { id: 'mon_bob_4', name: 'Cyber Bob', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=BobMonster4&backgroundColor=9333ea&hair=bob', bio: 'Bob cuts on robots: The next frontier.', defaultSkin: 'neon', color: 'purple' },
-  { id: 'mon_bob_5', name: 'Glam-Ghou', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster5&backgroundColor=db2777&hair=bob', bio: 'Terror has never looked this chic.', defaultSkin: 'pixel', color: 'pink' }
+  { id: 'mon_bob_1', name: 'B-Monster', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster1&backgroundColor=f43f5e&hair=bob', bio: 'A monster with a permit for style.', defaultSkin: 'ruby', color: 'rose', tier: 'Platinum', price: 5000 },
+  { id: 'mon_bob_2', name: 'Cuty-Scary', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=BobMonster2&backgroundColor=10b981&hair=bob', bio: 'The bob cut makes the horns look fashionable.', defaultSkin: 'forest', color: 'emerald', tier: 'Platinum', price: 5000 },
+  { id: 'mon_bob_3', name: 'Void Bob', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster3&backgroundColor=1e293b&hair=bob', bio: 'The stylish end of the universe.', defaultSkin: 'midnight', color: 'slate', tier: 'Platinum', price: 5000 },
+  { id: 'mon_bob_4', name: 'Cyber Bob', avatar: 'https://api.dicebear.com/9.x/bottts/svg?seed=BobMonster4&backgroundColor=9333ea&hair=bob', bio: 'Bob cuts on robots: The next frontier.', defaultSkin: 'neon', color: 'purple', tier: 'Platinum', price: 5000 },
+  { id: 'mon_bob_5', name: 'Glam-Ghou', avatar: 'https://api.dicebear.com/9.x/big-ears/svg?seed=BobMonster5&backgroundColor=db2777&hair=bob', bio: 'Terror has never looked this chic.', defaultSkin: 'pixel', color: 'pink', tier: 'Platinum', price: 5000 }
 ];

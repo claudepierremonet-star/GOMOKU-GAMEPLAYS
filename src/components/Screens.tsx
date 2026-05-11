@@ -58,6 +58,7 @@ import {
   Puzzle,
   Compass,
   ShoppingCart,
+  QrCode,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { GomokuBoard } from "./GomokuBoard";
@@ -450,7 +451,69 @@ export function AppScreens() {
 
       if (type === "move") {
         const soundType = userProfile?.selectedSound || "default";
-        if (soundType === "laser") {
+        if (soundType.startsWith("sound_")) {
+          const parts = soundType.split("_");
+          const tier = parts[1];
+          const num = parseInt(parts[2]) || 1;
+          
+          let baseFreq = 400;
+          let endFreq = 600;
+          let dur = 0.1;
+          let baseVolume = 0.3;
+          let waveType: OscillatorType = "sine";
+          
+          if (tier === "classic") {
+            waveType = num % 2 === 0 ? "square" : "triangle";
+            baseFreq = 200 + (num * 30);
+            endFreq = 150 + (num * 20);
+            dur = 0.2;
+          } else if (tier === "silver") {
+            waveType = "sawtooth";
+            baseFreq = 300 + (num * 40);
+            endFreq = baseFreq - 100;
+            dur = 0.25;
+            baseVolume = 0.4;
+          } else if (tier === "gold") {
+            waveType = "sine";
+            baseFreq = 800 + (num * 100);
+            endFreq = 1200 + (num * 100);
+            dur = 0.15;
+            baseVolume = 0.2;
+          } else if (tier === "diamond") {
+            waveType = "sine";
+            if (num % 2 === 0) { // clicks
+              baseFreq = 1500 + (num * 50);
+              endFreq = 3000;
+              dur = 0.05;
+              baseVolume = 0.5;
+            } else { // deep calls
+              baseFreq = 100 + (num * 10);
+              endFreq = 80;
+              dur = 0.4;
+              baseVolume = 0.5;
+            }
+          } else if (tier === "plat") {
+            waveType = num % 2 === 0 ? "sawtooth" : "square";
+            baseFreq = 150 + (num * 20);
+            endFreq = 50 + (num * 10);
+            dur = 0.35;
+            baseVolume = 0.6;
+          }
+
+          osc.type = waveType;
+          osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(
+            endFreq,
+            ctx.currentTime + dur,
+          );
+          gainNode.gain.setValueAtTime(baseVolume, ctx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.01,
+            ctx.currentTime + dur,
+          );
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + dur);
+        } else if (soundType === "laser") {
           osc.type = "sawtooth";
           osc.frequency.setValueAtTime(800, ctx.currentTime);
           osc.frequency.exponentialRampToValueAtTime(
@@ -1220,11 +1283,13 @@ export function AppScreens() {
     const updatedProfile = {
       ...userProfile!,
       customCharacters: [...(userProfile?.customCharacters || []), newChar],
+      zenCoins: (userProfile?.zenCoins || 0) - 500,
     };
 
     try {
       await updateDoc(doc(db, "users", user.uid), {
         customCharacters: updatedProfile.customCharacters,
+        zenCoins: updatedProfile.zenCoins,
       });
       setUserProfile(updatedProfile);
       setNewCharName("");
@@ -1251,17 +1316,17 @@ export function AppScreens() {
         });
         setUserProfile(updatedProfile);
         if (selectedSkinId === skinId) setSelectedSkinId(SKINS[0].id);
-        toast.success("Skin deleted");
+        toast.success("Theme deleted");
       } catch (error) {
         console.error("Error deleting skin:", error);
-        toast.error("Failed to delete skin");
+        toast.error("Failed to delete theme");
       }
     } else {
       const updatedSkins = localCustomSkins.filter((s) => s.id !== skinId);
       setLocalCustomSkins(updatedSkins);
       localStorage.setItem("gomoku_customSkins", JSON.stringify(updatedSkins));
       if (selectedSkinId === skinId) setSelectedSkinId(SKINS[0].id);
-      toast.success("Skin deleted");
+      toast.success("Theme deleted");
     }
   };
 
@@ -1270,25 +1335,27 @@ export function AppScreens() {
       const updatedProfile = {
         ...userProfile,
         customSkins: [...(userProfile.customSkins || []), newSkin],
+        zenCoins: (userProfile.zenCoins || 0) - 500,
       };
 
       try {
         await updateDoc(doc(db, "users", user.uid), {
           customSkins: updatedProfile.customSkins,
+          zenCoins: updatedProfile.zenCoins,
         });
         setUserProfile(updatedProfile);
         setIsCreatingSkin(false);
-        toast.success("Custom skin saved!");
+        toast.success("Custom theme saved!");
       } catch (error) {
         console.error("Error creating custom skin:", error);
-        toast.error("Failed to save skin");
+        toast.error("Failed to save theme");
       }
     } else {
       const updatedSkins = [...localCustomSkins, newSkin];
       setLocalCustomSkins(updatedSkins);
       localStorage.setItem("gomoku_customSkins", JSON.stringify(updatedSkins));
       setIsCreatingSkin(false);
-      toast.success("Custom skin saved locally!");
+      toast.success("Custom theme saved locally!");
     }
   };
   const nextAmbientColor = () => {
@@ -2033,7 +2100,7 @@ export function AppScreens() {
 
     if (
       !window.confirm(
-        "Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et toutes vos données (ELO, historique, skins personnalisés) seront définitivement supprimées.",
+        "Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible et toutes vos données (ELO, historique, thèmes personnalisés) seront définitivement supprimées.",
       )
     ) {
       return;
@@ -2193,7 +2260,7 @@ export function AppScreens() {
   };
 
   const handleBuyItem = async (
-    type: "skin" | "sound",
+    type: "skin" | "sound" | "character",
     itemId: string,
     price: number,
   ) => {
@@ -2223,6 +2290,14 @@ export function AppScreens() {
           zenCoins: newZenCoins,
           unlockedSounds: newUnlocks,
         });
+      } else if (type === "character") {
+        const newUnlocks = [...(userProfile!.unlockedCharacters || []), itemId];
+        updateData.unlockedCharacters = newUnlocks;
+        setUserProfile({
+          ...userProfile!,
+          zenCoins: newZenCoins,
+          unlockedCharacters: newUnlocks,
+        });
       }
 
       await updateDoc(doc(db, "users", user.uid), updateData);
@@ -2233,7 +2308,7 @@ export function AppScreens() {
     }
   };
 
-  const handleEquipItem = async (type: "skin" | "sound", itemId: string) => {
+  const handleEquipItem = async (type: "skin" | "sound" | "character", itemId: string) => {
     if (!user || (!userProfile && !!user)) return;
     try {
       let updateData: any = {};
@@ -2246,6 +2321,10 @@ export function AppScreens() {
         await updateDoc(doc(db, "users", user.uid), updateData);
         // Also fire off a sample!
         playSound("move");
+      } else if (type === "character") {
+        updateData.selectedCharacterId = itemId;
+        setUserProfile({ ...userProfile!, selectedCharacterId: itemId });
+        await updateDoc(doc(db, "users", user.uid), updateData);
       }
       toast.success("Equipped!");
     } catch (e) {
@@ -5693,7 +5772,7 @@ export function AppScreens() {
 
               <section>
                 <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Character & Skin
+                  Character & Theme
                 </h3>
                 <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
                   <div className="p-4 border-b border-zinc-100">
@@ -5705,7 +5784,9 @@ export function AppScreens() {
                       {[
                         ...CHARACTERS,
                         ...(userProfile?.customCharacters || []),
-                      ].map((char) => {
+                      ].filter(char => 
+                        userProfile?.unlockedCharacters?.includes(char.id) || ['master_lin'].includes(char.id) || char.isCustom
+                      ).map((char) => {
                         const charColor = char.color
                           ? COLOR_MAP[char.color.toLowerCase()] || char.color
                           : "#6b7280";
@@ -5760,7 +5841,7 @@ export function AppScreens() {
                   <div className="p-4">
                     <div className="flex items-center gap-3 mb-4">
                       <Palette size={20} className="text-zinc-400" />
-                      <span className="font-medium">Board & Stone Skin</span>
+                      <span className="font-medium">Board & Stone Theme</span>
                     </div>
                     <div className="flex gap-4 overflow-x-auto pb-6 snap-x custom-scrollbar -mx-2 px-2">
                       {allSkins.map((skin) => {
@@ -5824,6 +5905,12 @@ export function AppScreens() {
                             >
                               {skin.name}
                             </span>
+                            {skin.serialNumber && (
+                              <div className={`flex items-center gap-1 mt-1 text-[8px] uppercase font-mono font-bold tracking-widest ${selectedSkinId === skin.id ? "text-zinc-600" : "text-zinc-400"}`}>
+                                <QrCode size={10} />
+                                <span>{skin.serialNumber}</span>
+                              </div>
+                            )}
                           </motion.button>
                         );
                       })}
@@ -6013,6 +6100,8 @@ export function AppScreens() {
               onBack={() => setCurrentScreen("home")}
               onBuyItem={handleBuyItem}
               onEquipItem={handleEquipItem}
+              onOpenSkinDesigner={() => setIsCreatingSkin(true)}
+              onOpenCharDesigner={() => setIsCreatingChar(true)}
             />
           </motion.div>
         )}
@@ -6065,132 +6154,6 @@ export function AppScreens() {
                         "No bio yet. Tell the world about your Gomoku strategy!"}
                     </p>
                   </div>
-                </div>
-              </section>
-
-              <section className="mb-12">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-black tracking-tighter uppercase">
-                    Custom Characters
-                  </h3>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsCreatingChar(true)}
-                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-md hover:shadow-lg"
-                  >
-                    <Plus size={14} />
-                    Create New
-                  </motion.button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {userProfile?.customCharacters.map((char) => (
-                    <div
-                      key={char.id}
-                      className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center gap-4"
-                    >
-                      <img
-                        src={char.avatar}
-                        alt={char.name}
-                        className="w-16 h-16 rounded-2xl object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div>
-                        <h4 className="font-bold text-zinc-900">{char.name}</h4>
-                        <p className="text-xs text-zinc-500 line-clamp-1">
-                          {char.bio}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {userProfile?.customCharacters.length === 0 && (
-                    <div className="col-span-full py-12 text-center bg-zinc-100/50 rounded-3xl border-2 border-dashed border-zinc-200">
-                      <p className="text-zinc-400 font-bold text-sm uppercase tracking-widest">
-                        No custom characters yet
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="mb-12">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-black tracking-tighter uppercase">
-                    Custom Skins
-                  </h3>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsCreatingSkin(true)}
-                    className="flex items-center gap-2 bg-zinc-900 text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-md hover:shadow-lg"
-                  >
-                    <Plus size={14} />
-                    Design Skin
-                  </motion.button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {allCustomSkins.map((skin, idx) => {
-                    const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(
-                      skin.blackStone,
-                    );
-                    const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(
-                      skin.whiteStone,
-                    );
-                    return (
-                      <div
-                        key={idx}
-                        className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center justify-between gap-4 group"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div
-                            className="w-16 h-16 rounded-2xl flex items-center justify-center gap-1"
-                            style={{ backgroundColor: skin.boardColor }}
-                          >
-                            <div
-                              className={`w-3 h-3 rounded-full ${!isBlackHex ? skin.blackStone : ""}`}
-                              style={
-                                isBlackHex
-                                  ? { backgroundColor: skin.blackStone }
-                                  : {}
-                              }
-                            />
-                            <div
-                              className={`w-3 h-3 rounded-full ${!isWhiteHex ? skin.whiteStone : ""}`}
-                              style={
-                                isWhiteHex
-                                  ? { backgroundColor: skin.whiteStone }
-                                  : {}
-                              }
-                            />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-zinc-900">
-                              {skin.name}
-                            </h4>
-                            <p className="text-xs text-zinc-500">
-                              Custom Design
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteCustomSkin(skin.id)}
-                          className="p-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"
-                          title="Delete skin"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                  {allCustomSkins.length === 0 && (
-                    <div className="col-span-full py-12 text-center bg-zinc-100/50 rounded-3xl border-2 border-dashed border-zinc-200">
-                      <p className="text-zinc-400 font-bold text-sm uppercase tracking-widest">
-                        No custom skins yet
-                      </p>
-                    </div>
-                  )}
                 </div>
               </section>
 
