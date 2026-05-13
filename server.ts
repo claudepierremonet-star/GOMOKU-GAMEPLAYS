@@ -7,8 +7,85 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import sharp from 'sharp';
 
 dotenv.config();
+
+function generateIconSvg(shape: string, color: string): string {
+  let shapePath = '';
+  switch(shape) {
+    case 'triangle':
+      shapePath = '<polygon points="50,15 85,75 15,75" fill="white" />';
+      break;
+    case 'hexagone':
+      shapePath = '<polygon points="50,15 80,30 80,70 50,85 20,70 20,30" fill="white" />';
+      break;
+    case 'etoile':
+      shapePath = '<polygon points="50,15 61,38 86,41 68,58 72,83 50,71 28,83 32,58 14,41 39,38" fill="white" />';
+      break;
+    case 'bouclier':
+      shapePath = '<path d="M20,15 L80,15 L80,45 C80,70 50,85 50,85 C50,85 20,70 20,45 Z" fill="white" />';
+      break;
+    case 'goutte':
+      shapePath = '<path d="M50,20 C50,20 25,45 25,60 C25,73.8 36.2,85 50,85 C63.8,85 75,73.8 75,60 C75,45 50,20 50,20 Z" fill="white" />';
+      break;
+    case 'cercle':
+      shapePath = '<circle cx="50" cy="50" r="30" fill="white" />';
+      break;
+    case 'carre':
+      shapePath = '<rect x="25" y="25" width="50" height="50" rx="10" fill="white" />';
+      break;
+    case 'losange':
+      shapePath = '<polygon points="50,15 85,50 50,85 15,50" fill="white" />';
+      break;
+    case 'coeur':
+      shapePath = '<path d="M50,80 C50,80 15,50 15,35 C15,20 30,15 40,25 C50,35 50,35 50,35 C50,35 50,35 60,25 C70,15 85,20 85,35 C85,50 50,80 50,80 Z" fill="white" />';
+      break;
+    case 'lune':
+      shapePath = '<path d="M60,15 C30,15 15,40 15,65 C15,85 35,95 50,95 C40,85 35,70 45,55 C55,40 70,30 85,35 C80,20 70,15 60,15 Z" fill="white" />';
+      break;
+    case 'nuage':
+      shapePath = '<path d="M25,65 C15,65 10,55 15,45 C20,35 35,30 45,40 C50,30 65,30 75,40 C80,50 75,65 65,65 Z" fill="white" />';
+      break;
+    case 'fleur':
+      shapePath = '<path d="M50,55 C30,75 20,40 40,30 C20,20 50,0 60,25 C75,10 90,40 70,50 C90,65 60,95 50,75 C35,95 10,75 30,55 Z" fill="white" /><circle cx="50" cy="45" r="10" fill="' + color + '" />';
+      break;
+    case 'eclair':
+      shapePath = '<polygon points="55,10 20,50 45,50 40,90 80,40 55,40" fill="white" />';
+      break;
+    case 'pentagone':
+      shapePath = '<polygon points="50,15 85,40 70,80 30,80 15,40" fill="white" />';
+      break;
+    case 'octogone':
+      shapePath = '<polygon points="35,15 65,15 85,35 85,65 65,85 35,85 15,65 15,35" fill="white" />';
+      break;
+    case 'soleil':
+      shapePath = '<circle cx="50" cy="50" r="15" fill="white" /><path d="M50,15 L50,25 M50,75 L50,85 M15,50 L25,50 M75,50 L85,50 M25,25 L32,32 M68,68 L75,75 M25,75 L32,68 M68,32 L75,25" stroke="white" stroke-width="6" stroke-linecap="round" />';
+      break;
+    case 'couronne':
+      shapePath = '<polygon points="15,40 30,75 70,75 85,40 65,55 50,25 35,55" fill="white" />';
+      break;
+    case 'feuille':
+      shapePath = '<path d="M50,15 C80,15 85,50 85,50 C85,80 50,85 50,85 C20,85 15,50 15,50 C15,20 50,15 50,15 Z" fill="white" />';
+      break;
+    case 'oeil':
+      shapePath = '<path d="M15,50 C30,30 70,30 85,50 C70,70 30,70 15,50 Z" fill="white" /><circle cx="50" cy="50" r="10" fill="' + color + '" />';
+      break;
+    case 'roiva':
+    default:
+      shapePath = '<rect x="30" y="30" width="40" height="40" rx="10" fill="white" /><circle cx="50" cy="50" r="10" fill="' + color + '" />';
+      break;
+  }
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <rect width="100" height="100" rx="20" fill="${color}" />
+  <g transform="translate(7.5, 2.5) scale(0.85)">
+    ${shapePath}
+  </g>
+  <text x="50" y="94" font-family="sans-serif" font-weight="900" font-size="10" fill="rgba(255,255,255,0.8)" text-anchor="middle" letter-spacing="1">GOMOKU</text>
+</svg>`;
+  return svg;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -236,6 +313,32 @@ async function startServer() {
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/api/icon', async (req, res) => {
+    try {
+      const color = (req.query.color as string) || '#4f46e5';
+      const shape = (req.query.shape as string) || 'roiva';
+      const format = (req.query.format as string) || 'svg';
+
+      const svgString = generateIconSvg(shape, color);
+
+      if (format === 'svg') {
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        res.send(svgString);
+      } else if (format === 'png') {
+        const pngBuffer = await sharp(Buffer.from(svgString)).resize(512, 512).png().toBuffer();
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        res.send(pngBuffer);
+      } else {
+        res.status(400).send('Invalid format');
+      }
+    } catch (e) {
+      console.error(e);
+      res.status(500).send('Error generating icon');
+    }
   });
 
   // --- Music OAuth Routes ---

@@ -59,6 +59,7 @@ import {
   Compass,
   ShoppingCart,
   QrCode,
+  Smartphone,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { GomokuBoard } from "./GomokuBoard";
@@ -142,6 +143,7 @@ import {
 } from "recharts";
 
 import { toast } from "sonner";
+import { SHOP_SOUNDS } from "../soundsDB";
 
 const PREDEFINED_AVATARS = [
   "https://api.dicebear.com/7.x/adventurer/svg?seed=Felix",
@@ -199,6 +201,29 @@ interface ChatMessage {
   isMe: boolean;
   achievements?: string[];
 }
+
+export const APP_ICON_COLORS: Record<string, string> = {
+  indigo: '#4f46e5',
+  emerald: '#10b981',
+  rose: '#e11d48',
+  amber: '#f59e0b',
+  purple: '#a855f7',
+  cyan: '#06b6d4',
+  slate: '#64748b',
+  fuchsia: '#d946ef',
+  black: '#09090b',
+  zinc: '#52525b',
+  red: '#ef4444',
+  orange: '#f97316',
+  yellow: '#eab308',
+  lime: '#84cc16',
+  green: '#22c55e',
+  teal: '#14b8a6',
+  sky: '#0ea5e9',
+  blue: '#3b82f6',
+  violet: '#8b5cf6',
+  pink: '#ec4899'
+};
 
 const COLOR_MAP: Record<string, string> = {
   emerald: "#10b981",
@@ -370,6 +395,75 @@ export function AppScreens() {
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
 
   // Settings
+  const [appLanguage, setAppLanguage] = useState(() => localStorage.getItem("gomoku_language") || "en");
+  const [appIconColor, setAppIconColor] = useState(() => localStorage.getItem("gomoku_iconColor") || "indigo");
+  const [appIconShape, setAppIconShape] = useState(() => localStorage.getItem("gomoku_iconShape") || "roiva");
+
+  useEffect(() => {
+    localStorage.setItem("gomoku_language", appLanguage);
+  }, [appLanguage]);
+
+  useEffect(() => {
+    localStorage.setItem("gomoku_iconColor", appIconColor);
+    localStorage.setItem("gomoku_iconShape", appIconShape);
+    
+    const c = APP_ICON_COLORS[appIconColor] || APP_ICON_COLORS.indigo;
+    
+    const svgUrl = `/api/icon?color=${encodeURIComponent(c)}&shape=${encodeURIComponent(appIconShape)}&format=svg`;
+    const pngUrl = `/api/icon?color=${encodeURIComponent(c)}&shape=${encodeURIComponent(appIconShape)}&format=png`;
+    
+    let iconLink = document.querySelector('link[rel="icon"]');
+    if (!iconLink) {
+      iconLink = document.createElement('link');
+      iconLink.setAttribute('rel', 'icon');
+      document.head.appendChild(iconLink);
+    }
+    iconLink.setAttribute('href', svgUrl);
+
+    let appleLink = document.querySelector('link[rel="apple-touch-icon"]');
+    if (!appleLink) {
+      appleLink = document.createElement('link');
+      appleLink.setAttribute('rel', 'apple-touch-icon');
+      document.head.appendChild(appleLink);
+    }
+    appleLink.setAttribute('href', pngUrl);
+    
+    // Update manifest for Android
+    const manifest = {
+      name: "Gomoku Prime",
+      short_name: "Gomoku",
+      icons: [
+        {
+          src: pngUrl,
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any maskable"
+        },
+        {
+          src: pngUrl,
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable"
+        }
+      ],
+      theme_color: c,
+      background_color: "#ffffff",
+      display: "standalone"
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const manifestUrl = URL.createObjectURL(manifestBlob);
+    
+    let manifestLink = document.querySelector('link[rel="manifest"]');
+    if (!manifestLink) {
+      manifestLink = document.createElement('link');
+      manifestLink.setAttribute('rel', 'manifest');
+      document.head.appendChild(manifestLink);
+    } else if (manifestLink.href.startsWith('blob:')) {
+      URL.revokeObjectURL(manifestLink.href);
+    }
+    manifestLink.setAttribute('href', manifestUrl);
+  }, [appIconColor, appIconShape]);
+
   const [boardSize, setBoardSize] = useState<BoardSize>(() => {
     const saved = localStorage.getItem("gomoku_boardSize");
     if (!saved) return 15;
@@ -434,7 +528,7 @@ export function AppScreens() {
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
-  const playSound = (type: "move" | "win" | "lose" | "draw") => {
+  const playSound = (type: "move" | "win" | "lose" | "draw", overrideSoundId?: string) => {
     if (!soundEnabledRef.current) return;
 
     try {
@@ -449,8 +543,28 @@ export function AppScreens() {
       osc.connect(gainNode);
       gainNode.connect(ctx.destination);
 
-      if (type === "move") {
-        const soundType = userProfile?.selectedSound || "default";
+      let soundType = "default";
+      let isDefaultTone = false;
+
+      if (overrideSoundId) {
+        soundType = overrideSoundId;
+      } else {
+        if (type === "move") {
+          soundType = userProfile?.selectedSound || "default";
+        } else if (type === "win") {
+          soundType = userProfile?.selectedWinSound || "default";
+        } else if (type === "lose") {
+          soundType = userProfile?.selectedLossSound || "default";
+        } else if (type === "draw") {
+          isDefaultTone = true;
+        }
+      }
+
+      if (soundType === "default") {
+        isDefaultTone = true;
+      }
+
+      if (!isDefaultTone) {
         if (soundType.startsWith("sound_")) {
           const parts = soundType.split("_");
           const tier = parts[1];
@@ -539,7 +653,12 @@ export function AppScreens() {
           osc.start(ctx.currentTime);
           osc.stop(ctx.currentTime + 0.1);
         } else {
-          // default
+          isDefaultTone = true;
+        }
+      }
+      
+      if (isDefaultTone) {
+        if (type === "move") {
           osc.type = "sine";
           osc.frequency.setValueAtTime(400, ctx.currentTime);
           osc.frequency.exponentialRampToValueAtTime(
@@ -553,34 +672,34 @@ export function AppScreens() {
           );
           osc.start(ctx.currentTime);
           osc.stop(ctx.currentTime + 0.1);
+        } else if (type === "win") {
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(400, ctx.currentTime);
+          osc.frequency.setValueAtTime(500, ctx.currentTime + 0.1);
+          osc.frequency.setValueAtTime(600, ctx.currentTime + 0.2);
+          osc.frequency.setValueAtTime(800, ctx.currentTime + 0.3);
+          gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.6);
+        } else if (type === "lose") {
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(300, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.5);
+          gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.6);
+        } else if (type === "draw") {
+          osc.type = "square";
+          osc.frequency.setValueAtTime(300, ctx.currentTime);
+          osc.frequency.setValueAtTime(250, ctx.currentTime + 0.2);
+          osc.frequency.setValueAtTime(200, ctx.currentTime + 0.4);
+          gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+          gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.6);
         }
-      } else if (type === "win") {
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(400, ctx.currentTime);
-        osc.frequency.setValueAtTime(500, ctx.currentTime + 0.1);
-        osc.frequency.setValueAtTime(600, ctx.currentTime + 0.2);
-        osc.frequency.setValueAtTime(800, ctx.currentTime + 0.3);
-        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.6);
-      } else if (type === "lose") {
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(300, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.5);
-        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.6);
-      } else if (type === "draw") {
-        osc.type = "square";
-        osc.frequency.setValueAtTime(300, ctx.currentTime);
-        osc.frequency.setValueAtTime(250, ctx.currentTime + 0.2);
-        osc.frequency.setValueAtTime(200, ctx.currentTime + 0.4);
-        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.6);
       }
     } catch (e) {
       console.error("Error playing sound:", e);
@@ -1283,7 +1402,7 @@ export function AppScreens() {
     const updatedProfile = {
       ...userProfile!,
       customCharacters: [...(userProfile?.customCharacters || []), newChar],
-      zenCoins: (userProfile?.zenCoins || 0) - 500,
+      zenCoins: (userProfile?.zenCoins || 0) - 5000,
     };
 
     try {
@@ -5954,6 +6073,96 @@ export function AppScreens() {
 
               <section>
                 <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
+                  Preferences
+                </h3>
+                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+                    <div className="flex items-center gap-3">
+                      <Globe size={20} className="text-zinc-400" />
+                      <span className="font-medium">App Language</span>
+                    </div>
+                    <select
+                      value={appLanguage}
+                      onChange={(e) => setAppLanguage(e.target.value)}
+                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
+                    >
+                      <option value="en">English (US)</option>
+                      <option value="en-gb">English (UK)</option>
+                      <option value="fr">Français</option>
+                      <option value="es">Español</option>
+                      <option value="de">Deutsch</option>
+                      <option value="zh">中文</option>
+                      <option value="ja">日本語</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col p-4 gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Smartphone size={20} className="text-zinc-400" />
+                        <span className="font-medium">App Icon Personalization</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4 pt-2 border-t border-zinc-100">
+                      <div>
+                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Color Palette (20 options)</div>
+                        <div className="flex items-center flex-wrap gap-2">
+                          {Object.entries(APP_ICON_COLORS).map(([id, hex]) => (
+                            <button
+                              key={id}
+                              onClick={() => setAppIconColor(id)}
+                              className={`w-8 h-8 rounded-full shrink-0 transition-all shadow-sm ${appIconColor === id ? 'scale-110 ring-2 ring-offset-2 ring-zinc-900 border-2 border-white' : 'hover:scale-110 border border-white opacity-80 hover:opacity-100'}`}
+                              style={{ backgroundColor: hex }}
+                              title={`Color: ${id}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Icon Shape (20 options)</div>
+                        <div className="flex items-center flex-wrap gap-2">
+                          {[
+                            { id: 'roiva', name: 'Roïva' }, { id: 'triangle', name: 'Triangle' },
+                            { id: 'hexagone', name: 'Hexagone' }, { id: 'etoile', name: 'Étoile' },
+                            { id: 'bouclier', name: 'Bouclier' }, { id: 'goutte', name: 'Goutte' },
+                            { id: 'cercle', name: 'Cercle' }, { id: 'carre', name: 'Carré' },
+                            { id: 'losange', name: 'Losange' }, { id: 'coeur', name: 'Cœur' },
+                            { id: 'lune', name: 'Lune' }, { id: 'nuage', name: 'Nuage' },
+                            { id: 'fleur', name: 'Fleur' }, { id: 'eclair', name: 'Éclair' },
+                            { id: 'pentagone', name: 'Pentagone' }, { id: 'octogone', name: 'Octogone' },
+                            { id: 'soleil', name: 'Soleil' }, { id: 'couronne', name: 'Couronne' },
+                            { id: 'feuille', name: 'Feuille' }, { id: 'oeil', name: 'Œil' }
+                          ].map(shape => (
+                            <button
+                              key={shape.id}
+                              onClick={() => setAppIconShape(shape.id)}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all border ${appIconShape === shape.id ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'}`}
+                            >
+                              {shape.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 p-4 mt-2 bg-zinc-50 rounded-2xl border border-zinc-100 opacity-90">
+                        <img 
+                          src={`/api/icon?color=${encodeURIComponent(APP_ICON_COLORS[appIconColor] || APP_ICON_COLORS.indigo)}&shape=${appIconShape}&format=svg`} 
+                          alt="Preview" 
+                          className="w-16 h-16 shadow-sm rounded-2xl" 
+                        />
+                        <div className="text-sm text-zinc-600 font-medium">
+                          Your custom SVG application icon dynamically generated! 
+                          <br/><span className="text-zinc-400 text-xs mt-1 block">Live updating manifest and favicon...</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
                   Audio
                 </h3>
                 <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
@@ -5972,6 +6181,67 @@ export function AppScreens() {
                       <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
                     </label>
                   </div>
+                  {soundEnabled && (
+                    <>
+                      <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
+                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Placement Sound</span>
+                        <select
+                           value={userProfile?.selectedSound || "default"}
+                           onChange={async (e) => {
+                             const val = e.target.value;
+                             setUserProfile(prev => prev ? { ...prev, selectedSound: val } : prev);
+                             if (user) await updateDoc(doc(db, "users", user.uid), { "settings.selectedSound": val }).catch(console.error);
+                           }}
+                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
+                        >
+                           <option value="default">Default Tone</option>
+                           <option value="laser">Sci-Fi Laser</option>
+                           <option value="heavy">Heavy Thud</option>
+                           {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
+                             <option key={s.id} value={s.id}>{s.name}</option>
+                           ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
+                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Victory Sound</span>
+                        <select
+                           value={userProfile?.selectedWinSound || "default"}
+                           onChange={async (e) => {
+                             const val = e.target.value;
+                             setUserProfile(prev => prev ? { ...prev, selectedWinSound: val } : prev);
+                             if (user) await updateDoc(doc(db, "users", user.uid), { "settings.selectedWinSound": val }).catch(console.error);
+                           }}
+                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
+                        >
+                           <option value="default">Default Tone</option>
+                           <option value="laser">Sci-Fi Laser</option>
+                           <option value="heavy">Heavy Thud</option>
+                           {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
+                             <option key={s.id} value={s.id}>{s.name}</option>
+                           ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
+                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Defeat Sound</span>
+                        <select
+                           value={userProfile?.selectedLossSound || "default"}
+                           onChange={async (e) => {
+                             const val = e.target.value;
+                             setUserProfile(prev => prev ? { ...prev, selectedLossSound: val } : prev);
+                             if (user) await updateDoc(doc(db, "users", user.uid), { "settings.selectedLossSound": val }).catch(console.error);
+                           }}
+                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
+                        >
+                           <option value="default">Default Tone</option>
+                           <option value="laser">Sci-Fi Laser</option>
+                           <option value="heavy">Heavy Thud</option>
+                           {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
+                             <option key={s.id} value={s.id}>{s.name}</option>
+                           ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
                   <div className="flex items-center justify-between p-4 border-b border-zinc-100">
                     <div className="flex items-center gap-3">
                       <Music size={20} className="text-zinc-400" />
@@ -6102,6 +6372,7 @@ export function AppScreens() {
               onEquipItem={handleEquipItem}
               onOpenSkinDesigner={() => setIsCreatingSkin(true)}
               onOpenCharDesigner={() => setIsCreatingChar(true)}
+              onPreviewSound={(soundId) => playSound("move", soundId)}
             />
           </motion.div>
         )}

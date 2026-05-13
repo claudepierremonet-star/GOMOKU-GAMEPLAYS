@@ -25,6 +25,18 @@ export const SHOP_SOUNDS: ShopSound[] = [
   { id: 'sound_classic_14', name: 'Puppy Whimper', price: 100, description: 'A cute little pup.', tier: 'Classic' },
   { id: 'sound_classic_15', name: 'Donkey Bray', price: 100, description: 'Hee-haw!', tier: 'Classic' },
   
+  // Stone Placement / Zen Sounds - 300 Coins
+  { id: 'sound_classic_16', name: 'Bamboo Click', price: 300, description: 'A sharp, resonant bamboo tap.', tier: 'Classic' },
+  { id: 'sound_classic_17', name: 'Jade Stone', price: 300, description: 'The solid, heavy thud of jade.', tier: 'Classic' },
+  { id: 'sound_classic_18', name: 'Ceramic Tap', price: 300, description: 'A crisp ceramic clink.', tier: 'Classic' },
+  { id: 'sound_classic_19', name: 'Crystal Drop', price: 300, description: 'A light, high-pitched crystal ping.', tier: 'Classic' },
+  { id: 'sound_classic_20', name: 'Water Drop', price: 300, description: 'A gentle ripple of water.', tier: 'Classic' },
+  { id: 'sound_silver_16', name: 'Wood Knock', price: 300, description: 'A deep thud on hollow wood.', tier: 'Silver', serialNumber: 'SND-SIL-1015' },
+  { id: 'sound_silver_17', name: 'Steel Clink', price: 300, description: 'A metallic clang of steel.', tier: 'Silver', serialNumber: 'SND-SIL-1016' },
+  { id: 'sound_silver_18', name: 'Hollow Bamboo', price: 300, description: 'A hollow, echoing bamboo knock.', tier: 'Silver', serialNumber: 'SND-SIL-1017' },
+  { id: 'sound_silver_19', name: 'Resonant Stone', price: 300, description: 'A vibrating, resonant stone placement.', tier: 'Silver', serialNumber: 'SND-SIL-1018' },
+  { id: 'sound_silver_20', name: 'Sharp Glass', price: 300, description: 'A piercing glass tap.', tier: 'Silver', serialNumber: 'SND-SIL-1019' },
+
   // Silver - 500 Coins (Forest and Wild land animals)
   { id: 'sound_silver_1', name: 'Wolf Howl', price: 500, description: 'Howl at the moon.', tier: 'Silver', serialNumber: 'SND-SIL-1000' },
   { id: 'sound_silver_2', name: 'Bear Roar', price: 500, description: 'A menacing bear roar.', tier: 'Silver', serialNumber: 'SND-SIL-1001' },

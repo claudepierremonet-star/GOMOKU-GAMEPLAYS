@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, Coins, ShoppingCart, Music, Check, Lock, Info, Plus, QrCode } from 'lucide-react';
+import { ChevronLeft, Coins, ShoppingCart, Music, Check, Lock, Info, Plus, QrCode, Trophy, Handshake, Gamepad2, Gift } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { UserProfile, ALL_SKINS, Skin, CHARACTERS } from '../types';
 import { toast } from 'sonner';
@@ -12,9 +12,10 @@ interface ZenShopProps {
   onEquipItem: (type: 'skin' | 'sound' | 'character', itemId: string) => void;
   onOpenSkinDesigner: () => void;
   onOpenCharDesigner: () => void;
+  onPreviewSound: (soundId: string) => void;
 }
 
-export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSkinDesigner, onOpenCharDesigner }: ZenShopProps) {
+export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSkinDesigner, onOpenCharDesigner, onPreviewSound }: ZenShopProps) {
   const [activeTab, setActiveTab] = useState<'skins' | 'sounds' | 'characters' | 'info' | 'custom'>('info');
   const [activeSkinTier, setActiveSkinTier] = useState<string>('All');
   const [activeSoundTier, setActiveSoundTier] = useState<string>('All');
@@ -104,24 +105,76 @@ export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSki
 
         <div className="flex-1 overflow-y-auto px-2 custom-scrollbar">
           {activeTab === 'info' && (
-            <div className="max-w-2xl mx-auto mt-8">
-               <h3 className="text-2xl font-black mb-4">Zen Coins Guide</h3>
-               <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100 mb-6">
-                 <h4 className="font-bold text-lg text-amber-600 mb-2">How to obtain Zen Coins?</h4>
-                 <ul className="list-disc pl-5 space-y-2 text-zinc-600 font-medium">
-                   <li><strong className="text-zinc-900">Win Matches:</strong> You earn 20 Zen Coins for every victory against the AI or in online ranked.</li>
-                   <li><strong className="text-zinc-900">Draws:</strong> A hard-fought draw still nets you 10 Zen Coins.</li>
-                   <li><strong className="text-zinc-900">Participate:</strong> Even if you lose, you get 5 Zen Coins just for trying.</li>
-                   <li><strong className="text-zinc-900">Starting Bonus:</strong> All users start their journey with a gift of 100 Zen Coins!</li>
-                 </ul>
+              <div className="max-w-4xl mx-auto mt-8">
+               <h3 className="text-2xl font-black mb-6 text-center">Zen Coins Guide</h3>
+               
+               <h4 className="font-bold text-lg text-zinc-800 mb-4 px-2">How to obtain Zen Coins?</h4>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-5 rounded-3xl border border-emerald-200/50 shadow-sm flex flex-col items-center text-center gap-3 hover:scale-105 transition-transform duration-300">
+                   <div className="bg-emerald-200 text-emerald-700 p-4 rounded-2xl shadow-inner">
+                     <Trophy size={32} />
+                   </div>
+                   <div>
+                     <h4 className="font-black text-emerald-900 mb-1">Win Matches</h4>
+                     <p className="text-emerald-700/80 text-sm font-medium">Earn <strong className="text-emerald-900 bg-emerald-200/50 px-2 py-0.5 rounded-lg">20 Coins</strong> for every victory against the AI or in online ranked.</p>
+                   </div>
+                 </div>
+
+                 <div className="bg-gradient-to-br from-amber-50 to-amber-100 p-5 rounded-3xl border border-amber-200/50 shadow-sm flex flex-col items-center text-center gap-3 hover:scale-105 transition-transform duration-300">
+                   <div className="bg-amber-200 text-amber-700 p-4 rounded-2xl shadow-inner">
+                     <Handshake size={32} />
+                   </div>
+                   <div>
+                     <h4 className="font-black text-amber-900 mb-1">Draws</h4>
+                     <p className="text-amber-700/80 text-sm font-medium">A hard-fought draw still nets you <strong className="text-amber-900 bg-amber-200/50 px-2 py-0.5 rounded-lg">10 Coins</strong>.</p>
+                   </div>
+                 </div>
+
+                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-5 rounded-3xl border border-slate-200/50 shadow-sm flex flex-col items-center text-center gap-3 hover:scale-105 transition-transform duration-300">
+                   <div className="bg-slate-200 text-slate-700 p-4 rounded-2xl shadow-inner">
+                     <Gamepad2 size={32} />
+                   </div>
+                   <div>
+                     <h4 className="font-black text-slate-900 mb-1">Participate</h4>
+                     <p className="text-slate-600 text-sm font-medium">Even if you lose, you get <strong className="text-slate-900 bg-slate-200/50 px-2 py-0.5 rounded-lg">5 Coins</strong> just for trying.</p>
+                   </div>
+                 </div>
+
+                 <div className="bg-gradient-to-br from-violet-50 to-violet-100 p-5 rounded-3xl border border-violet-200/50 shadow-sm flex flex-col items-center text-center gap-3 hover:scale-105 transition-transform duration-300">
+                   <div className="bg-violet-200 text-violet-700 p-4 rounded-2xl shadow-inner">
+                     <Gift size={32} />
+                   </div>
+                   <div>
+                     <h4 className="font-black text-violet-900 mb-1">Starting Bonus</h4>
+                     <p className="text-violet-700/80 text-sm font-medium">All users start their journey with a gift of <strong className="text-violet-900 bg-violet-200/50 px-2 py-0.5 rounded-lg">100 Coins</strong>!</p>
+                   </div>
+                 </div>
                </div>
 
-               <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
-                 <h4 className="font-bold text-lg text-indigo-600 mb-2">How to use Zen Coins?</h4>
-                 <ul className="list-disc pl-5 space-y-2 text-zinc-600 font-medium">
-                   <li><strong className="text-zinc-900">Purchase Themes:</strong> Access the "Themes" tab to buy themes across different tiers (Silver, Gold, Diamond, Platinum) inspired by various universes!</li>
-                   <li><strong className="text-zinc-900">Custom Sounds:</strong> Go to the "Sounds" tab to buy unique placement sounds like 'Laser Beam' or 'Heavy Stone'.</li>
-                 </ul>
+               <h4 className="font-bold text-lg text-zinc-800 mb-4 px-2">How to use Zen Coins?</h4>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                 <div className="bg-white p-5 rounded-3xl shadow-sm border border-zinc-100 flex items-start gap-4 hover:border-indigo-300 transition-colors">
+                   <div className="bg-indigo-50 text-indigo-600 p-3 rounded-2xl shrink-0">
+                     <ShoppingCart size={24} />
+                   </div>
+                   <div>
+                     <h4 className="font-bold text-zinc-900 mb-1">Purchase Themes</h4>
+                     <p className="text-zinc-500 text-sm font-medium leading-relaxed">
+                       Access the <strong className="text-zinc-700">"Themes"</strong> tab to buy themes across different tiers (Silver, Gold, Diamond, Platinum) inspired by various universes!
+                     </p>
+                   </div>
+                 </div>
+                 <div className="bg-white p-5 rounded-3xl shadow-sm border border-zinc-100 flex items-start gap-4 hover:border-pink-300 transition-colors">
+                   <div className="bg-pink-50 text-pink-600 p-3 rounded-2xl shrink-0">
+                     <Music size={24} />
+                   </div>
+                   <div>
+                     <h4 className="font-bold text-zinc-900 mb-1">Custom Sounds</h4>
+                     <p className="text-zinc-500 text-sm font-medium leading-relaxed">
+                       Go to the <strong className="text-zinc-700">"Sounds"</strong> tab to buy unique placement sounds like 'Laser Beam' or 'Heavy Stone'.
+                     </p>
+                   </div>
+                 </div>
                </div>
             </div>
           )}
@@ -246,13 +299,20 @@ export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSki
                         
                         return (
                           <div key={sound.id} className="bg-white rounded-3xl p-5 shadow-sm border border-zinc-100 flex items-center gap-4 hover:border-zinc-300 transition-colors">
-                            <div className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center shrink-0">
-                              <Music size={24} />
-                            </div>
+                            <button
+                               onClick={() => onPreviewSound(sound.id)}
+                               className="w-12 h-12 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center shrink-0 hover:bg-indigo-100 transition-colors group relative"
+                               title="Preview Sound"
+                            >
+                              <Music size={24} className="group-hover:opacity-0 transition-opacity" />
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                              </div>
+                            </button>
                             <div className="flex-1">
                               <div className="flex items-start justify-between">
                                 <div>
-                                  <h3 className="font-bold text-base">{sound.name}</h3>
+                                  <h3 className="font-bold text-base cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => onPreviewSound(sound.id)}>{sound.name}</h3>
                                   {sound.serialNumber && (
                                     <div className="flex items-center gap-1 text-[10px] uppercase font-mono font-bold tracking-widest text-zinc-400">
                                       <span>id: {sound.serialNumber}</span>
@@ -330,16 +390,28 @@ export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSki
                         
                         return (
                           <div key={char.id} className="bg-white rounded-3xl p-4 shadow-sm border border-zinc-100 flex flex-col hover:border-zinc-300 transition-colors">
-                            <div className="flex items-center gap-4 mb-4">
-                              <img src={char.avatar} alt={char.name} className="w-16 h-16 rounded-2xl bg-zinc-100" />
-                              <div>
-                                <h3 className="font-bold text-base line-clamp-1">{char.name}</h3>
-                                {char.color && (
-                                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${bgColor}`}>
-                                    {char.color}
-                                  </span>
-                                )}
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-4">
+                                <img src={char.avatar} alt={char.name} className="w-16 h-16 rounded-2xl bg-zinc-100" />
+                                <div>
+                                  <h3 className="font-bold text-base line-clamp-1">{char.name}</h3>
+                                  {char.color && (
+                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${bgColor} mb-1 block w-max`}>
+                                      {char.color}
+                                    </span>
+                                  )}
+                                  {char.serialNumber && (
+                                    <div className="flex items-center gap-1 text-[10px] uppercase font-mono font-bold tracking-widest text-zinc-400">
+                                      <span>id: {char.serialNumber}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                              {char.serialNumber && (
+                                <div className="p-1 bg-white rounded border border-zinc-200 shrink-0 shadow-sm self-start" title={`Avatar Serial: ${char.serialNumber}`}>
+                                  <QRCodeSVG value={`https://gomoku.example.com/avatar/${char.id}/${char.serialNumber}`} size={28} level="L" includeMargin={false} />
+                                </div>
+                              )}
                             </div>
                             <p className="text-zinc-500 text-xs mb-4 line-clamp-2 h-8 leading-snug">{char.bio}</p>
                             <div className="mt-auto">
@@ -375,38 +447,53 @@ export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSki
                   </h3>
                   <button
                     onClick={() => {
-                        if (zenCoins < 500) {
+                        if (zenCoins < 5000) {
                             toast.error("Not enough Zen Coins!");
                             return;
                         }
                         onOpenCharDesigner();
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-md ${zenCoins >= 500 ? 'bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-lg' : 'bg-zinc-200 text-zinc-500 cursor-not-allowed'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-md ${zenCoins >= 5000 ? 'bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-lg' : 'bg-zinc-200 text-zinc-500 cursor-not-allowed'}`}
                   >
                     <Plus size={14} />
-                    Create (500 <Coins size={12} className="inline ml-0.5" />)
+                    Create (5000 <Coins size={12} className="inline ml-0.5" />)
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {userProfile.customCharacters?.map((char) => (
+                  {userProfile.customCharacters?.map((char) => {
+                    const isEquipped = selectedCharacterId === char.id;
+                    return (
                     <div
                       key={char.id}
-                      className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center gap-4"
+                      className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm flex items-center justify-between gap-4 hover:border-zinc-300 transition-colors"
                     >
-                      <img
-                        src={char.avatar}
-                        alt={char.name}
-                        className="w-16 h-16 rounded-2xl object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div>
-                        <h4 className="font-bold text-zinc-900">{char.name}</h4>
-                        <p className="text-xs text-zinc-500 line-clamp-1">
-                          {char.bio}
-                        </p>
+                      <div className="flex items-center gap-4">
+                        <img
+                          src={char.avatar}
+                          alt={char.name}
+                          className="w-16 h-16 rounded-2xl object-cover bg-zinc-100"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div>
+                          <h4 className="font-bold text-zinc-900">{char.name}</h4>
+                          <p className="text-xs text-zinc-500 line-clamp-1 max-w-[200px]">
+                            {char.bio}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                         {isEquipped ? (
+                             <button disabled className="px-3 py-1.5 bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-lg">
+                                Equipped
+                             </button>
+                         ) : (
+                             <button onClick={() => onEquipItem('character', char.id)} className="px-3 py-1.5 bg-zinc-100 text-zinc-900 font-bold text-[10px] hover:bg-zinc-200 rounded-lg transition-colors">
+                                Equip
+                             </button>
+                         )}
                       </div>
                     </div>
-                  ))}
+                  )})}
                   {(!userProfile.customCharacters || userProfile.customCharacters.length === 0) && (
                     <div className="col-span-full py-12 text-center bg-zinc-100/50 rounded-3xl border-2 border-dashed border-zinc-200">
                       <p className="text-zinc-400 font-bold text-sm uppercase tracking-widest">
