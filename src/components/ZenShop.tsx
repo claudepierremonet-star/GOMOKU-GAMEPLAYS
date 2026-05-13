@@ -511,16 +511,12 @@ export function ZenShop({ userProfile, onBack, onBuyItem, onEquipItem, onOpenSki
                   </h3>
                   <button
                     onClick={() => {
-                        if (zenCoins < 500) {
-                            toast.error("Not enough Zen Coins!");
-                            return;
-                        }
                         onOpenSkinDesigner();
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-md ${zenCoins >= 500 ? 'bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-lg' : 'bg-zinc-200 text-zinc-500 cursor-not-allowed'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-md bg-zinc-900 text-white hover:bg-zinc-800 hover:shadow-lg`}
                   >
                     <Plus size={14} />
-                    Design Theme (500 <Coins size={12} className="inline ml-0.5" />)
+                    Design Theme
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

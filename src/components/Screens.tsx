@@ -120,6 +120,7 @@ import {
 import { MusicPlayer } from "./MusicPlayer";
 import { TutorialScreen } from "./TutorialScreen";
 import { CustomSkinDesigner } from "./CustomSkinDesigner";
+import { CustomCharDesigner } from "./CustomCharDesigner";
 import { OpeningExplorer } from "./OpeningExplorer";
 import { DailyPuzzle } from "./DailyPuzzle";
 import { ZenShop } from "./ZenShop";
@@ -312,9 +313,6 @@ export function AppScreens() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // Custom Character Creation State
-  const [newCharName, setNewCharName] = useState("");
-  const [newCharAvatar, setNewCharAvatar] = useState("");
-  const [newCharBio, setNewCharBio] = useState("");
   const [isCreatingChar, setIsCreatingChar] = useState(false);
 
   // Custom Skin Creation State
@@ -495,6 +493,15 @@ export function AppScreens() {
     const saved = localStorage.getItem("gomoku_musicEnabled");
     return saved === null ? true : saved === "true";
   });
+  const [selectedSound, setSelectedSound] = useState<string>(() => {
+    return localStorage.getItem("gomoku_selectedSound") || "default";
+  });
+  const [selectedWinSound, setSelectedWinSound] = useState<string>(() => {
+    return localStorage.getItem("gomoku_selectedWinSound") || "default";
+  });
+  const [selectedLossSound, setSelectedLossSound] = useState<string>(() => {
+    return localStorage.getItem("gomoku_selectedLossSound") || "default";
+  });
   const [selectedSkinId, setSelectedSkinId] = useState<SkinId>(() => {
     const saved = localStorage.getItem("gomoku_selectedSkinId");
     return (saved as SkinId) || "classic";
@@ -550,11 +557,11 @@ export function AppScreens() {
         soundType = overrideSoundId;
       } else {
         if (type === "move") {
-          soundType = userProfile?.selectedSound || "default";
+          soundType = selectedSound || "default";
         } else if (type === "win") {
-          soundType = userProfile?.selectedWinSound || "default";
+          soundType = selectedWinSound || "default";
         } else if (type === "lose") {
-          soundType = userProfile?.selectedLossSound || "default";
+          soundType = selectedLossSound || "default";
         } else if (type === "draw") {
           isDefaultTone = true;
         }
@@ -830,6 +837,33 @@ export function AppScreens() {
       }).catch((err) => console.error("Error saving musicEnabled:", err));
     }
   }, [musicEnabled, user, isAuthLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("gomoku_selectedSound", selectedSound);
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, "users", user.uid), {
+        "settings.selectedSound": selectedSound,
+      }).catch((err) => console.error("Error saving selectedSound:", err));
+    }
+  }, [selectedSound, user, isAuthLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("gomoku_selectedWinSound", selectedWinSound);
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, "users", user.uid), {
+        "settings.selectedWinSound": selectedWinSound,
+      }).catch((err) => console.error("Error saving selectedWinSound:", err));
+    }
+  }, [selectedWinSound, user, isAuthLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("gomoku_selectedLossSound", selectedLossSound);
+    if (user && !isAuthLoading) {
+      updateDoc(doc(db, "users", user.uid), {
+        "settings.selectedLossSound": selectedLossSound,
+      }).catch((err) => console.error("Error saving selectedLossSound:", err));
+    }
+  }, [selectedLossSound, user, isAuthLoading]);
 
   useEffect(() => {
     const audio = document.getElementById("bg-music") as HTMLAudioElement;
@@ -1238,7 +1272,9 @@ export function AppScreens() {
               unlockedCharacters: data.unlockedCharacters || ["master_lin"],
               unlockedSounds: data.unlockedSounds || ["default"],
               achievements: data.achievements || [],
-              selectedSound: data.settings.selectedSound || "default",
+              selectedSound: data.settings?.selectedSound || "default",
+              selectedWinSound: data.settings?.selectedWinSound || "default",
+              selectedLossSound: data.settings?.selectedLossSound || "default",
               stats: data.stats,
             });
           }
@@ -1262,6 +1298,8 @@ export function AppScreens() {
             unlockedSounds: ["default"],
             achievements: [],
             selectedSound: "default",
+            selectedWinSound: "default",
+            selectedLossSound: "default",
             stats: {
               wins: 0,
               losses: 0,
@@ -1287,6 +1325,9 @@ export function AppScreens() {
               selectedSkin: selectedSkinId,
               selectedCharacter: selectedCharacterId,
               selectedRegion,
+              selectedSound: "default",
+              selectedWinSound: "default",
+              selectedLossSound: "default",
             },
           });
           setUserProfile(initialProfile);
@@ -1380,21 +1421,21 @@ export function AppScreens() {
     }
   }, [currentScreen]);
 
-  const handleCreateCustomCharacter = async () => {
+  const handleCreateCustomCharacter = async (name: string, avatar: string, bio: string) => {
     if (!user) {
       toast.error("You must be logged in to create a character");
       return;
     }
-    if (!newCharName || !newCharAvatar) {
+    if (!name || !avatar) {
       toast.error("Please enter a name and avatar URL");
       return;
     }
 
     const newChar: Character = {
       id: `custom_${Date.now()}`,
-      name: newCharName,
-      avatar: newCharAvatar,
-      bio: newCharBio,
+      name: name,
+      avatar: avatar,
+      bio: bio,
       defaultSkin: "classic",
       isCustom: true,
     };
@@ -1453,14 +1494,12 @@ export function AppScreens() {
     if (user && userProfile) {
       const updatedProfile = {
         ...userProfile,
-        customSkins: [...(userProfile.customSkins || []), newSkin],
-        zenCoins: (userProfile.zenCoins || 0) - 500,
+        customSkins: [...(userProfile.customSkins || []), newSkin]
       };
 
       try {
         await updateDoc(doc(db, "users", user.uid), {
-          customSkins: updatedProfile.customSkins,
-          zenCoins: updatedProfile.zenCoins,
+          customSkins: updatedProfile.customSkins
         });
         setUserProfile(updatedProfile);
         setIsCreatingSkin(false);
@@ -6095,6 +6134,19 @@ export function AppScreens() {
                       <option value="ja">日本語</option>
                     </select>
                   </div>
+                  
+                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+                    <div className="flex items-center gap-3">
+                      <Palette size={20} className="text-zinc-400" />
+                      <span className="font-medium">Custom Board Theme</span>
+                    </div>
+                    <button
+                      onClick={() => setIsCreatingSkin(true)}
+                      className="bg-zinc-900 text-white rounded-xl px-4 py-2 font-medium text-sm hover:bg-zinc-800 transition-colors"
+                    >
+                      Open Designer
+                    </button>
+                  </div>
                   <div className="flex flex-col p-4 gap-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -6186,11 +6238,11 @@ export function AppScreens() {
                       <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
                         <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Placement Sound</span>
                         <select
-                           value={userProfile?.selectedSound || "default"}
-                           onChange={async (e) => {
+                           value={selectedSound}
+                           onChange={(e) => {
                              const val = e.target.value;
-                             setUserProfile(prev => prev ? { ...prev, selectedSound: val } : prev);
-                             if (user) await updateDoc(doc(db, "users", user.uid), { "settings.selectedSound": val }).catch(console.error);
+                             setSelectedSound(val);
+                             if (userProfile) setUserProfile({ ...userProfile, selectedSound: val });
                            }}
                            className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
                         >
@@ -6205,11 +6257,11 @@ export function AppScreens() {
                       <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
                         <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Victory Sound</span>
                         <select
-                           value={userProfile?.selectedWinSound || "default"}
-                           onChange={async (e) => {
+                           value={selectedWinSound}
+                           onChange={(e) => {
                              const val = e.target.value;
-                             setUserProfile(prev => prev ? { ...prev, selectedWinSound: val } : prev);
-                             if (user) await updateDoc(doc(db, "users", user.uid), { "settings.selectedWinSound": val }).catch(console.error);
+                             setSelectedWinSound(val);
+                             if (userProfile) setUserProfile({ ...userProfile, selectedWinSound: val });
                            }}
                            className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
                         >
@@ -6224,11 +6276,11 @@ export function AppScreens() {
                       <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
                         <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Defeat Sound</span>
                         <select
-                           value={userProfile?.selectedLossSound || "default"}
-                           onChange={async (e) => {
+                           value={selectedLossSound}
+                           onChange={(e) => {
                              const val = e.target.value;
-                             setUserProfile(prev => prev ? { ...prev, selectedLossSound: val } : prev);
-                             if (user) await updateDoc(doc(db, "users", user.uid), { "settings.selectedLossSound": val }).catch(console.error);
+                             setSelectedLossSound(val);
+                             if (userProfile) setUserProfile({ ...userProfile, selectedLossSound: val });
                            }}
                            className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
                         >
@@ -6588,112 +6640,11 @@ export function AppScreens() {
               )}
 
               {isCreatingChar && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
-                >
-                  <motion.div
-                    initial={{ scale: 0.9, y: 20 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 20 }}
-                    className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl"
-                  >
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-2xl font-black tracking-tighter uppercase">
-                        New Character
-                      </h3>
-                      <button
-                        onClick={() => setIsCreatingChar(false)}
-                        className="p-2 hover:bg-zinc-100 rounded-full transition-colors"
-                      >
-                        <X size={24} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-6">
-                      {/* Live Preview */}
-                      <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 flex items-center gap-4">
-                        <img
-                          src={
-                            newCharAvatar ||
-                            "https://picsum.photos/seed/placeholder/200/200"
-                          }
-                          alt="Preview"
-                          className="w-16 h-16 rounded-2xl object-cover shadow-sm bg-zinc-200"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              "https://picsum.photos/seed/placeholder/200/200";
-                          }}
-                        />
-                        <div className="flex-1">
-                          <h4 className="font-bold text-zinc-900">
-                            {newCharName || "Character Name"}
-                          </h4>
-                          <p className="text-xs text-zinc-500 line-clamp-2">
-                            {newCharBio ||
-                              "Character biography will appear here..."}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
-                          Character Name
-                        </label>
-                        <input
-                          type="text"
-                          value={newCharName}
-                          onChange={(e) => setNewCharName(e.target.value)}
-                          placeholder="e.g. Shadow Master"
-                          className="w-full bg-zinc-100 border-none rounded-2xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
-                          Avatar URL
-                        </label>
-                        <input
-                          type="text"
-                          value={newCharAvatar}
-                          onChange={(e) => setNewCharAvatar(e.target.value)}
-                          placeholder="https://..."
-                          className="w-full bg-zinc-100 border-none rounded-2xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
-                          Biography
-                        </label>
-                        <textarea
-                          value={newCharBio}
-                          onChange={(e) => setNewCharBio(e.target.value)}
-                          placeholder="A short story about your character..."
-                          className="w-full bg-zinc-100 border-none rounded-2xl px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-zinc-900 h-24 resize-none"
-                        />
-                      </div>
-                      <motion.button
-                        whileHover={
-                          newCharName && newCharAvatar ? { scale: 1.02 } : {}
-                        }
-                        whileTap={
-                          newCharName && newCharAvatar ? { scale: 0.98 } : {}
-                        }
-                        onClick={handleCreateCustomCharacter}
-                        disabled={!newCharName || !newCharAvatar}
-                        className={`w-full py-4 rounded-2xl font-bold transition-all shadow-lg ${
-                          newCharName && newCharAvatar
-                            ? "bg-zinc-900 text-white hover:bg-zinc-800 shadow-zinc-900/20"
-                            : "bg-zinc-200 text-zinc-400 cursor-not-allowed shadow-none"
-                        }`}
-                      >
-                        Create Character
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                </motion.div>
+                <CustomCharDesigner
+                  onClose={() => setIsCreatingChar(false)}
+                  onSave={handleCreateCustomCharacter}
+                  predefinedAvatars={PREDEFINED_AVATARS}
+                />
               )}
 
               {isCreatingSkin && (
