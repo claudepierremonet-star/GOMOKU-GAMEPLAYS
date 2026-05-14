@@ -147,14 +147,18 @@ import { toast } from "sonner";
 import { SHOP_SOUNDS } from "../soundsDB";
 
 const PREDEFINED_AVATARS = [
-  "https://api.dicebear.com/7.x/adventurer/svg?seed=Felix",
-  "https://api.dicebear.com/7.x/adventurer/svg?seed=Aneka",
-  "https://api.dicebear.com/7.x/adventurer/svg?seed=Garfield",
-  "https://api.dicebear.com/7.x/adventurer/svg?seed=Loki",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=Robot1",
-  "https://api.dicebear.com/7.x/bottts/svg?seed=Robot2",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Molly",
-  "https://api.dicebear.com/7.x/avataaars/svg?seed=Sam",
+  "https://api.dicebear.com/9.x/adventurer/svg?seed=Felix",
+  "https://api.dicebear.com/9.x/adventurer/svg?seed=Aneka",
+  "https://api.dicebear.com/9.x/adventurer/svg?seed=Garfield",
+  "https://api.dicebear.com/9.x/adventurer/svg?seed=Loki",
+  "https://api.dicebear.com/9.x/bottts/svg?seed=Robot1",
+  "https://api.dicebear.com/9.x/bottts/svg?seed=Robot2",
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=Molly",
+  "https://api.dicebear.com/9.x/avataaars/svg?seed=Sam",
+  "https://api.dicebear.com/9.x/miniavs/svg?seed=Jade",
+  "https://api.dicebear.com/9.x/miniavs/svg?seed=Leo",
+  "https://api.dicebear.com/9.x/pixel-art/svg?seed=Pixel1",
+  "https://api.dicebear.com/9.x/pixel-art/svg?seed=Pixel2",
 ];
 
 const AMBIENT_COLORS = [
@@ -456,10 +460,10 @@ export function AppScreens() {
       manifestLink = document.createElement('link');
       manifestLink.setAttribute('rel', 'manifest');
       document.head.appendChild(manifestLink);
-    } else if (manifestLink.href.startsWith('blob:')) {
-      URL.revokeObjectURL(manifestLink.href);
+    } else if (manifestLink && (manifestLink as HTMLLinkElement).href.startsWith('blob:')) {
+      URL.revokeObjectURL((manifestLink as HTMLLinkElement).href);
     }
-    manifestLink.setAttribute('href', manifestUrl);
+    if (manifestLink) manifestLink.setAttribute('href', manifestUrl);
   }, [appIconColor, appIconShape]);
 
   const [boardSize, setBoardSize] = useState<BoardSize>(() => {
@@ -1275,6 +1279,7 @@ export function AppScreens() {
               selectedSound: data.settings?.selectedSound || "default",
               selectedWinSound: data.settings?.selectedWinSound || "default",
               selectedLossSound: data.settings?.selectedLossSound || "default",
+              completedPuzzles: data.completedPuzzles || [],
               stats: data.stats,
             });
           }
@@ -1421,6 +1426,17 @@ export function AppScreens() {
     }
   }, [currentScreen]);
 
+  const handleUpdateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) return;
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, updates);
+      setUserProfile((prev) => (prev ? { ...prev, ...updates } : null));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "users");
+    }
+  };
+
   const handleCreateCustomCharacter = async (name: string, avatar: string, bio: string) => {
     if (!user) {
       toast.error("You must be logged in to create a character");
@@ -1452,9 +1468,6 @@ export function AppScreens() {
         zenCoins: updatedProfile.zenCoins,
       });
       setUserProfile(updatedProfile);
-      setNewCharName("");
-      setNewCharAvatar("");
-      setNewCharBio("");
       setIsCreatingChar(false);
       toast.success("Character created successfully!");
     } catch (error) {
@@ -6157,7 +6170,7 @@ export function AppScreens() {
                     
                     <div className="space-y-4 pt-2 border-t border-zinc-100">
                       <div>
-                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Color Palette (20 options)</div>
+                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Color Palette</div>
                         <div className="flex items-center flex-wrap gap-2">
                           {Object.entries(APP_ICON_COLORS).map(([id, hex]) => (
                             <button
@@ -6171,8 +6184,8 @@ export function AppScreens() {
                         </div>
                       </div>
 
-                      <div>
-                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Icon Shape (20 options)</div>
+                      <div className="pt-2">
+                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Icon Shape</div>
                         <div className="flex items-center flex-wrap gap-2">
                           {[
                             { id: 'roiva', name: 'Roïva' }, { id: 'triangle', name: 'Triangle' },
@@ -6181,15 +6194,15 @@ export function AppScreens() {
                             { id: 'cercle', name: 'Cercle' }, { id: 'carre', name: 'Carré' },
                             { id: 'losange', name: 'Losange' }, { id: 'coeur', name: 'Cœur' },
                             { id: 'lune', name: 'Lune' }, { id: 'nuage', name: 'Nuage' },
-                            { id: 'fleur', name: 'Fleur' }, { id: 'eclair', name: 'Éclair' },
-                            { id: 'pentagone', name: 'Pentagone' }, { id: 'octogone', name: 'Octogone' },
+                            { id: 'fleur', name: 'Fleur' }, { id: 'eclair', name: 'Écl.' },
+                            { id: 'pentagone', name: 'Penta.' }, { id: 'octogone', name: 'Octo.' },
                             { id: 'soleil', name: 'Soleil' }, { id: 'couronne', name: 'Couronne' },
                             { id: 'feuille', name: 'Feuille' }, { id: 'oeil', name: 'Œil' }
                           ].map(shape => (
                             <button
                               key={shape.id}
                               onClick={() => setAppIconShape(shape.id)}
-                              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all border ${appIconShape === shape.id ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'}`}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-xl shrink-0 transition-all border ${appIconShape === shape.id ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'}`}
                             >
                               {shape.name}
                             </button>
@@ -6197,13 +6210,13 @@ export function AppScreens() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 p-4 mt-2 bg-zinc-50 rounded-2xl border border-zinc-100 opacity-90">
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 mt-2 bg-zinc-50 rounded-2xl border border-zinc-100 opacity-90 overflow-hidden">
                         <img 
                           src={`/api/icon?color=${encodeURIComponent(APP_ICON_COLORS[appIconColor] || APP_ICON_COLORS.indigo)}&shape=${appIconShape}&format=svg`} 
                           alt="Preview" 
-                          className="w-16 h-16 shadow-sm rounded-2xl" 
+                          className="w-16 h-16 shadow-sm rounded-2xl shrink-0" 
                         />
-                        <div className="text-sm text-zinc-600 font-medium">
+                        <div className="text-sm text-zinc-600 font-medium text-center sm:text-left break-words">
                           Your custom SVG application icon dynamically generated! 
                           <br/><span className="text-zinc-400 text-xs mt-1 block">Live updating manifest and favicon...</span>
                         </div>
@@ -6236,7 +6249,7 @@ export function AppScreens() {
                   {soundEnabled && (
                     <>
                       <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
-                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Placement Sound</span>
+                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight shrink-0">Placement Sound</span>
                         <select
                            value={selectedSound}
                            onChange={(e) => {
@@ -6244,7 +6257,7 @@ export function AppScreens() {
                              setSelectedSound(val);
                              if (userProfile) setUserProfile({ ...userProfile, selectedSound: val });
                            }}
-                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
+                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-32 sm:w-48 text-zinc-700 shadow-sm shrink-0 truncate"
                         >
                            <option value="default">Default Tone</option>
                            <option value="laser">Sci-Fi Laser</option>
@@ -6255,7 +6268,7 @@ export function AppScreens() {
                         </select>
                       </div>
                       <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
-                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Victory Sound</span>
+                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight shrink-0">Victory Sound</span>
                         <select
                            value={selectedWinSound}
                            onChange={(e) => {
@@ -6263,7 +6276,7 @@ export function AppScreens() {
                              setSelectedWinSound(val);
                              if (userProfile) setUserProfile({ ...userProfile, selectedWinSound: val });
                            }}
-                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
+                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-32 sm:w-48 text-zinc-700 shadow-sm shrink-0 truncate"
                         >
                            <option value="default">Default Tone</option>
                            <option value="laser">Sci-Fi Laser</option>
@@ -6274,7 +6287,7 @@ export function AppScreens() {
                         </select>
                       </div>
                       <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
-                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight">Defeat Sound</span>
+                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight shrink-0">Defeat Sound</span>
                         <select
                            value={selectedLossSound}
                            onChange={(e) => {
@@ -6282,7 +6295,7 @@ export function AppScreens() {
                              setSelectedLossSound(val);
                              if (userProfile) setUserProfile({ ...userProfile, selectedLossSound: val });
                            }}
-                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-48 text-zinc-700 shadow-sm"
+                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-32 sm:w-48 text-zinc-700 shadow-sm shrink-0 truncate"
                         >
                            <option value="default">Default Tone</option>
                            <option value="laser">Sci-Fi Laser</option>
@@ -6406,7 +6419,11 @@ export function AppScreens() {
             exit={{ opacity: 0, y: -20 }}
             className="absolute inset-0"
           >
-            <DailyPuzzle onBack={() => setCurrentScreen("home")} />
+            <DailyPuzzle 
+              onBack={() => setCurrentScreen("home")} 
+              userProfile={userProfile}
+              onUpdateProfile={handleUpdateProfile}
+            />
           </motion.div>
         )}
         {currentScreen === "shop" && (
@@ -6453,10 +6470,13 @@ export function AppScreens() {
                 <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-xl flex flex-col md:flex-row items-center gap-8">
                   <div className="relative group">
                     <img
-                      src={userProfile?.avatarUrl}
+                      src={userProfile?.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${userProfile?.displayName || 'User'}`}
                       alt="Avatar"
-                      className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg"
+                      className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-lg bg-zinc-100"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${userProfile?.displayName || 'User'}`;
+                      }}
                     />
                     <div
                       onClick={() => setIsEditingAvatar(true)}
@@ -6601,13 +6621,20 @@ export function AppScreens() {
                           <button
                             key={i}
                             onClick={() => updateAvatar(url)}
-                            className="relative group rounded-2xl overflow-hidden border-2 border-transparent hover:border-zinc-900 transition-colors"
+                            className={`relative group rounded-2xl overflow-hidden border-2 transition-all ${userProfile?.avatarUrl === url ? 'border-zinc-900 scale-95 shadow-inner' : 'border-transparent hover:border-zinc-400'}`}
                           >
                             <img
                               src={url}
                               alt="Predefined Avatar"
                               className="w-full aspect-square object-cover bg-zinc-100"
                             />
+                            {userProfile?.avatarUrl === url && (
+                              <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                <div className="bg-zinc-900 text-white rounded-full p-1 border-2 border-white shadow-sm">
+                                  <Check size={12} strokeWidth={4} />
+                                </div>
+                              </div>
+                            )}
                           </button>
                         ))}
                       </div>

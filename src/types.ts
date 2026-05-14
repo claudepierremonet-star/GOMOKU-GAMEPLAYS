@@ -172,6 +172,19 @@ export interface UserAchievement {
   unlockedAt: number;
 }
 
+export interface Puzzle {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  movesToWin: number;
+  playerSide: Player;
+  startingBoard: { row: number; col: number; player: Player }[];
+  solution: { row: number; col: number }[]; // The series of moves to win (Black's moves)
+  hints: string[];
+  reward: number;
+}
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -190,6 +203,11 @@ export interface UserProfile {
   selectedSound?: string;
   selectedWinSound?: string;
   selectedLossSound?: string;
+  completedPuzzles?: {
+    puzzleId: string;
+    completedAt: number;
+    rewardClaimed: boolean;
+  }[];
   seasonRankings?: {
     season: number;
     title: string;
