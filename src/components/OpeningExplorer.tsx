@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ChevronRight, ChevronLeft, Search } from "lucide-react";
 import { GomokuBoard } from "./GomokuBoard";
+import { GomokuBoard3D } from "./GomokuBoard3D";
 import { BoardState, createEmptyBoard, checkWin } from "../game/engine";
 
 import { SKINS } from '../types';
@@ -73,7 +74,7 @@ const OPENINGS: Opening[] = [
   },
 ];
 
-export function OpeningExplorer({ onBack }: { onBack: () => void }) {
+export function OpeningExplorer({ onBack, is3D = false }: { onBack: () => void, is3D?: boolean }) {
   const [selectedOpening, setSelectedOpening] = useState<Opening | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -92,7 +93,23 @@ export function OpeningExplorer({ onBack }: { onBack: () => void }) {
           className="w-full h-full max-h-full max-w-full flex items-center justify-center transform scale-75 origin-top-left"
           style={{ containerType: "size" }}
         >
-          <GomokuBoard board={board} onCellClick={() => {}} skin={SKINS[0]} />
+          {is3D ? (
+            <GomokuBoard3D 
+              board={board} 
+              onCellClick={() => {}} 
+              winningLine={null}
+              lastMove={null}
+              skin={SKINS[0]} 
+            />
+          ) : (
+            <GomokuBoard 
+              board={board} 
+              onCellClick={() => {}} 
+              skin={SKINS[0]} 
+              winningLine={null}
+              lastMove={null}
+            />
+          )}
         </div>
       </div>
     );
@@ -206,6 +223,7 @@ export function OpeningExplorer({ onBack }: { onBack: () => void }) {
                       <GomokuBoard
                         board={board}
                         onCellClick={() => {}}
+                        winningLine={null}
                         lastMove={
                           selectedOpening.moves[
                             selectedOpening.moves.length - 1

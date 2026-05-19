@@ -11,7 +11,7 @@ export interface MatchRecord {
   playerEloAfter: number;
   result: 'win' | 'loss' | 'draw';
   moves: { row: number; col: number; player: Player }[];
-  boardSize: number;
+  boardSize: number | string;
   gameMode: 'online' | 'pve' | 'pvp';
   winner: Player | 'draw';
   selectedSkin?: SkinId;

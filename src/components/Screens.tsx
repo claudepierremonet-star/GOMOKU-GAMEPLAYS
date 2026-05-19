@@ -34,6 +34,7 @@ import {
   Users,
   LogOut,
   Music,
+  Box,
   MessageSquare,
   Send,
   Undo2,
@@ -46,6 +47,7 @@ import {
   MapPin,
   Plus,
   Zap,
+  Gamepad2,
   Contrast,
   Clock,
   Heart,
@@ -63,10 +65,12 @@ import {
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { GomokuBoard } from "./GomokuBoard";
+import { GomokuBoard3D } from "./GomokuBoard3D";
 import {
   BoardState,
   Player,
   createEmptyBoard,
+  parseBoardSize,
   checkWin,
   isBoardFull,
   Threat,
@@ -318,6 +322,9 @@ export function AppScreens() {
 
   // Custom Character Creation State
   const [isCreatingChar, setIsCreatingChar] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editBio, setEditBio] = useState("");
 
   // Custom Skin Creation State
   const [isCreatingSkin, setIsCreatingSkin] = useState(false);
@@ -394,6 +401,10 @@ export function AppScreens() {
     dataPoints: number[];
   } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [is3D, setIs3D] = useState(() => {
+    const saved = localStorage.getItem("gomoku_is3D");
+    return saved === "true";
+  });
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
 
   // Settings
@@ -466,6 +477,7 @@ export function AppScreens() {
     if (manifestLink) manifestLink.setAttribute('href', manifestUrl);
   }, [appIconColor, appIconShape]);
 
+  const [activeSettingsTab, setActiveSettingsTab] = useState<"gameplay" | "visuals" | "sound">("gameplay");
   const [boardSize, setBoardSize] = useState<BoardSize>(() => {
     const saved = localStorage.getItem("gomoku_boardSize");
     if (!saved) return 15;
@@ -759,6 +771,10 @@ export function AppScreens() {
 
     fetchOpponentAvatar();
   }, [opponentUserId]);
+
+  useEffect(() => {
+    localStorage.setItem("gomoku_is3D", is3D.toString());
+  }, [is3D]);
 
   // Persistence effects
   useEffect(() => {
@@ -1959,9 +1975,10 @@ export function AppScreens() {
   // Set initial cursor position when entering game
   useEffect(() => {
     if (currentScreen === "game") {
+      const { rows, cols } = parseBoardSize(boardSize);
       setKeyboardCursor({
-        row: Math.floor(boardSize / 2),
-        col: Math.floor(boardSize / 2),
+        row: Math.floor(rows / 2),
+        col: Math.floor(cols / 2),
       });
     }
   }, [currentScreen, boardSize]);
@@ -1998,15 +2015,16 @@ export function AppScreens() {
       e.preventDefault();
 
       setKeyboardCursor((prev) => {
+        const { rows, cols } = parseBoardSize(boardSize);
         let { row, col } = prev || {
-          row: Math.floor(boardSize / 2),
-          col: Math.floor(boardSize / 2),
+          row: Math.floor(rows / 2),
+          col: Math.floor(cols / 2),
         };
 
         if (e.key === "ArrowUp") row = Math.max(0, row - 1);
-        else if (e.key === "ArrowDown") row = Math.min(boardSize - 1, row + 1);
+        else if (e.key === "ArrowDown") row = Math.min(rows - 1, row + 1);
         else if (e.key === "ArrowLeft") col = Math.max(0, col - 1);
-        else if (e.key === "ArrowRight") col = Math.min(boardSize - 1, col + 1);
+        else if (e.key === "ArrowRight") col = Math.min(cols - 1, col + 1);
         else if (e.key === "Enter" || e.key === " ") {
           // Trigger the move! Note: state updates in handleCellClick expect latest state,
           // but we will call handleCellClick directly with row, col
@@ -2039,7 +2057,7 @@ export function AppScreens() {
 
   // Use a ref to access the latest handleCellClick safely from the effect
   const handleCellClickRef =
-    useRef<(r: number, c: number, ai?: boolean) => void>();
+    useRef<(r: number, c: number, ai?: boolean) => void>(null);
 
   useEffect(() => {
     handleCellClickRef.current = handleCellClick;
@@ -2158,7 +2176,7 @@ export function AppScreens() {
         playerEloAfter: newElo,
         result: result,
         moves: [...moveHistory, { row, col, player: currentPlayer }],
-        boardSize: boardSize,
+        boardSize: Number(boardSize),
         gameMode: gameMode,
         winner: currentPlayer,
         selectedSkin: selectedSkinId,
@@ -2387,6 +2405,25 @@ export function AppScreens() {
     }
   };
 
+  const saveProfile = async () => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        displayName: editDisplayName,
+        bio: editBio,
+      });
+      setUserProfile((prev) =>
+        prev
+          ? { ...prev, displayName: editDisplayName, bio: editBio }
+          : null,
+      );
+      setIsEditingProfile(false);
+      toast.success("Profile updated!");
+    } catch (e) {
+      toast.error("Failed to update profile");
+    }
+  };
+
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -2508,6 +2545,29 @@ export function AppScreens() {
     setGameMode(mode);
     resetGame();
     setCurrentScreen("game");
+  };
+
+  const findOnlineMatch = (type: "ranked" | "casual" = "casual") => {
+    connectSocket();
+    setIsSearchingMatch(true);
+    setSearchStartTime(Date.now());
+    const region =
+      selectedRegion === "auto"
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone
+        : selectedRegion;
+    const effectiveTimeLimit = timeLimit === 0 ? 30 : timeLimit;
+
+    getSocket().emit("findMatch", {
+      type,
+      boardSize,
+      ruleSet,
+      elo: playerElo,
+      userId: user?.uid,
+      region,
+      timeLimit: effectiveTimeLimit,
+    });
+
+    setCurrentScreen("online");
   };
 
   const handleGeolocate = () => {
@@ -2780,16 +2840,25 @@ export function AppScreens() {
                       </div>
                     </button>
 
-                    <button
-                      onClick={() => {
-                        connectSocket();
-                        setCurrentScreen("online");
-                      }}
-                      className="flex items-center justify-center gap-3 bg-emerald-600 text-white py-4 px-6 rounded-2xl font-semibold hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20"
-                    >
-                      <Globe size={20} />
-                      Play Online
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => findOnlineMatch("ranked")}
+                        className="w-full flex items-center justify-center gap-3 bg-emerald-600 text-white py-4 px-6 rounded-2xl font-black uppercase tracking-tighter hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20 active:scale-95 group"
+                      >
+                        <Zap size={20} className="group-hover:animate-pulse" />
+                        Find Online Match
+                      </button>
+                      <button
+                        onClick={() => {
+                          connectSocket();
+                          setCurrentScreen("online");
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-zinc-600 transition-colors"
+                      >
+                        <Globe size={12} />
+                        Multiplayer Options
+                      </button>
+                    </div>
 
                     {hasSavedGame && (
                       <button
@@ -3100,6 +3169,14 @@ export function AppScreens() {
                 >
                   <Heart size={16} />
                 </button>
+                <div className={`w-[1px] h-4 bg-white/10 mx-1 shrink-0 ${uiStyle === "bubblegum" ? "bg-rose-100" : ""}`} />
+                <button
+                  onClick={() => setIs3D(!is3D)}
+                  className={`p-2 rounded-xl h-8 w-8 shrink-0 flex items-center justify-center transition-all ${is3D ? "bg-blue-500 text-white" : uiStyle === "bubblegum" ? "text-rose-300 hover:text-rose-400" : "text-zinc-500 hover:text-zinc-300"}`}
+                  title={is3D ? "Switch to 2D" : "Switch to 3D"}
+                >
+                  <Box size={16} className={is3D ? "animate-pulse" : ""} />
+                </button>
               </div>
               <div className="flex gap-1 overflow-x-auto max-w-[120px] md:max-w-none no-scrollbar px-1">
                 {SKINS.slice(0, 8).map((s) => (
@@ -3339,15 +3416,25 @@ export function AppScreens() {
                       className="w-full h-full max-h-full max-w-full flex items-center justify-center"
                       style={{ containerType: "size" }}
                     >
-                      <GomokuBoard
-                        board={board}
-                        onCellClick={handleCellClick}
-                        winningLine={winningLine}
-                        lastMove={lastMove}
-                        keyboardCursor={keyboardCursor}
-                        skin={currentSkin}
-                        threats={threats}
-                      />
+                      {is3D ? (
+                        <GomokuBoard3D
+                          board={board}
+                          onCellClick={handleCellClick}
+                          winningLine={winningLine}
+                          lastMove={lastMove}
+                          skin={currentSkin}
+                        />
+                      ) : (
+                        <GomokuBoard
+                          board={board}
+                          onCellClick={handleCellClick}
+                          winningLine={winningLine}
+                          lastMove={lastMove}
+                          keyboardCursor={keyboardCursor}
+                          skin={currentSkin}
+                          threats={threats}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -3625,11 +3712,7 @@ export function AppScreens() {
                   className={`flex items-center justify-between mb-4 md:mb-8 shrink-0 flex-wrap gap-4 ${uiStyle === "pixel" ? "border-b-4 border-white pb-4" : ""}`}
                 >
                   <button
-                    onClick={() =>
-                      gameMode === "online"
-                        ? leaveOnlineMatch()
-                        : setCurrentScreen("home")
-                    }
+                    onClick={() => setCurrentScreen("home")}
                     className={`p-2 rounded-full transition-colors ${uiStyle === "pixel" ? "bg-white text-black" : "hover:bg-zinc-200"}`}
                   >
                     <ChevronLeft size={24} />
@@ -3825,7 +3908,6 @@ export function AppScreens() {
                       <Music size={20} />
                     </button>
                     {!winner &&
-                      gameMode !== "online" &&
                       !(
                         gameMode === "pve" &&
                         ((startingPlayer === "human" &&
@@ -3852,7 +3934,6 @@ export function AppScreens() {
                         </button>
                       )}
                     {!winner &&
-                      gameMode !== "online" &&
                       moveHistory.length > 0 &&
                       !(
                         gameMode === "pve" &&
@@ -3877,7 +3958,6 @@ export function AppScreens() {
                         </button>
                       )}
                     {!winner &&
-                      gameMode !== "online" &&
                       !(
                         gameMode === "pve" &&
                         ((startingPlayer === "human" &&
@@ -3894,7 +3974,7 @@ export function AppScreens() {
                           <LogOut size={16} className="sm:hidden" />
                         </button>
                       )}
-                    {gameMode !== "online" && (
+                    {true && (
                       <button
                         onClick={() => setShowNewGameModal(true)}
                         className="px-3 py-1.5 md:px-4 md:py-2 bg-zinc-900 text-white rounded-full font-semibold hover:bg-zinc-800 transition-colors text-xs md:text-sm"
@@ -3984,20 +4064,30 @@ export function AppScreens() {
                       className="w-full h-full max-h-full max-w-full flex items-center justify-center"
                       style={{ containerType: "size" }}
                     >
-                      <GomokuBoard
-                        board={board}
-                        onCellClick={handleCellClick}
-                        winningLine={winningLine}
-                        lastMove={lastMove}
-                        coachMove={
-                          coachAdvice
-                            ? { row: coachAdvice.row, col: coachAdvice.col }
-                            : null
-                        }
-                        keyboardCursor={keyboardCursor}
-                        skin={currentSkin}
-                        threats={threats}
-                      />
+                      {is3D ? (
+                        <GomokuBoard3D
+                          board={board}
+                          onCellClick={handleCellClick}
+                          winningLine={winningLine}
+                          lastMove={lastMove}
+                          skin={currentSkin}
+                        />
+                      ) : (
+                        <GomokuBoard
+                          board={board}
+                          onCellClick={handleCellClick}
+                          winningLine={winningLine}
+                          lastMove={lastMove}
+                          coachMove={
+                            coachAdvice
+                              ? { row: coachAdvice.row, col: coachAdvice.col }
+                              : null
+                          }
+                          keyboardCursor={keyboardCursor}
+                          skin={currentSkin}
+                          threats={threats}
+                        />
+                      )}
                     </div>
                   </div>
                 </main>
@@ -4845,34 +4935,65 @@ export function AppScreens() {
                   className="w-full h-full max-h-full max-w-full flex items-center justify-center"
                   style={{ containerType: "size" }}
                 >
-                  <GomokuBoard
-                    board={replayBoard}
-                    onCellClick={() => {}}
-                    winningLine={
-                      replayMoveIndex === replayMatch.moves.length &&
-                      replayMatch.winner !== "draw" &&
-                      replayMatch.moves.length > 0
-                        ? checkWin(
-                            replayBoard,
-                            replayMatch.moves[replayMatch.moves.length - 1].row,
-                            replayMatch.moves[replayMatch.moves.length - 1].col,
-                            replayMatch.moves[replayMatch.moves.length - 1]
-                              .player,
-                            false,
-                          )
-                        : null
-                    }
-                    lastMove={
-                      replayMoveIndex > 0
-                        ? replayMatch.moves[replayMoveIndex - 1]
-                        : null
-                    }
-                    skin={
-                      allSkins.find(
-                        (s) => s.id === (replayMatch as any).selectedSkin,
-                      ) || SKINS[0]
-                    }
-                  />
+                  {is3D ? (
+                    <GomokuBoard3D
+                      board={replayBoard}
+                      onCellClick={() => {}}
+                      winningLine={
+                        replayMoveIndex === replayMatch.moves.length &&
+                        replayMatch.winner !== "draw" &&
+                        replayMatch.moves.length > 0
+                          ? checkWin(
+                              replayBoard,
+                              replayMatch.moves[replayMatch.moves.length - 1].row,
+                              replayMatch.moves[replayMatch.moves.length - 1].col,
+                              replayMatch.moves[replayMatch.moves.length - 1]
+                                .player,
+                              false,
+                            )
+                          : null
+                      }
+                      lastMove={
+                        replayMoveIndex > 0
+                          ? replayMatch.moves[replayMoveIndex - 1]
+                          : null
+                      }
+                      skin={
+                        allSkins.find(
+                          (s) => s.id === (replayMatch as any).selectedSkin,
+                        ) || SKINS[0]
+                      }
+                    />
+                  ) : (
+                    <GomokuBoard
+                      board={replayBoard}
+                      onCellClick={() => {}}
+                      winningLine={
+                        replayMoveIndex === replayMatch.moves.length &&
+                        replayMatch.winner !== "draw" &&
+                        replayMatch.moves.length > 0
+                          ? checkWin(
+                              replayBoard,
+                              replayMatch.moves[replayMatch.moves.length - 1].row,
+                              replayMatch.moves[replayMatch.moves.length - 1].col,
+                              replayMatch.moves[replayMatch.moves.length - 1]
+                                .player,
+                              false,
+                            )
+                          : null
+                      }
+                      lastMove={
+                        replayMoveIndex > 0
+                          ? replayMatch.moves[replayMoveIndex - 1]
+                          : null
+                      }
+                      skin={
+                        allSkins.find(
+                          (s) => s.id === (replayMatch as any).selectedSkin,
+                        ) || SKINS[0]
+                      }
+                    />
+                  )}
                 </div>
               </div>
 
@@ -5580,25 +5701,7 @@ export function AppScreens() {
                     </h3>
                     <div className="space-y-3">
                       <button
-                        onClick={() => {
-                          setIsSearchingMatch(true);
-                          setSearchStartTime(Date.now());
-                          const region =
-                            selectedRegion === "auto"
-                              ? Intl.DateTimeFormat().resolvedOptions().timeZone
-                              : selectedRegion;
-                          const effectiveTimeLimit =
-                            timeLimit === 0 ? 30 : timeLimit;
-                          getSocket().emit("findMatch", {
-                            type: "ranked",
-                            boardSize,
-                            ruleSet,
-                            elo: playerElo,
-                            userId: user?.uid,
-                            region,
-                            timeLimit: effectiveTimeLimit,
-                          });
-                        }}
+                        onClick={() => findOnlineMatch("ranked")}
                         className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
                       >
                         <div className="p-3 bg-amber-100 rounded-xl text-amber-600">
@@ -5613,24 +5716,7 @@ export function AppScreens() {
                       </button>
 
                       <button
-                        onClick={() => {
-                          setIsSearchingMatch(true);
-                          setSearchStartTime(Date.now());
-                          const region =
-                            selectedRegion === "auto"
-                              ? Intl.DateTimeFormat().resolvedOptions().timeZone
-                              : selectedRegion;
-                          const effectiveTimeLimit =
-                            timeLimit === 0 ? 30 : timeLimit;
-                          getSocket().emit("findMatch", {
-                            type: "casual",
-                            boardSize,
-                            ruleSet,
-                            userId: user?.uid,
-                            region,
-                            timeLimit: effectiveTimeLimit,
-                          });
-                        }}
+                        onClick={() => findOnlineMatch("casual")}
                         className="w-full flex items-center gap-4 py-4 px-5 rounded-2xl font-semibold text-left transition-colors bg-zinc-50 text-zinc-700 hover:bg-zinc-100 border border-zinc-100"
                       >
                         <div className="p-3 bg-emerald-100 rounded-xl text-emerald-600">
@@ -5713,679 +5799,614 @@ export function AppScreens() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="absolute inset-0 flex flex-col p-6 max-w-2xl mx-auto w-full overflow-y-auto custom-scrollbar pb-24"
+            className={`absolute inset-0 flex flex-col p-4 sm:p-6 max-w-2xl mx-auto w-full overflow-hidden ${uiStyle === "bubblegum" ? "bg-rose-50/10" : ""}`}
           >
-            <header className="flex items-center gap-4 mb-8 shrink-0">
+            <header className="flex items-center gap-4 mb-6 shrink-0">
               <button
                 onClick={() => setCurrentScreen("home")}
-                className="p-2 hover:bg-zinc-200 rounded-full transition-colors -ml-2"
+                className={`p-2 rounded-full transition-colors ${uiStyle === "pixel" ? "bg-white text-black border-2 border-black" : "hover:bg-zinc-100 bg-zinc-50"}`}
               >
                 <ChevronLeft size={24} />
               </button>
-              <h2 className="text-2xl font-bold">Settings</h2>
+              <div>
+                <h2 className="text-2xl font-black tracking-tighter uppercase italic">Settings</h2>
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest -mt-1">Configure your experience</p>
+              </div>
             </header>
 
-            <div className="space-y-6">
-              <section>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Game Rules
-                </h3>
-                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Monitor size={20} className="text-zinc-400" />
-                      <div>
-                        <p className="font-bold text-sm">UI Style</p>
-                        <p className="text-xs text-zinc-400">
-                          Choose the app's visual aesthetic.
-                        </p>
-                      </div>
-                    </div>
-                    <select
-                      value={uiStyle}
-                      onChange={(e) => setUiStyle(e.target.value as UiStyle)}
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="modern">Modern Glass</option>
-                      <option value="zen">Zen Paper</option>
-                      <option value="pixel">8-Bit Arcade</option>
-                      <option value="cyberpunk">Cyberpunk Neon</option>
-                      <option value="monochrome">Editorial Monochrome</option>
-                      <option value="retro">70s Retro</option>
-                      <option value="midnight">Deep Midnight</option>
-                      <option value="nature">Nature Forest</option>
-                      <option value="terminal">Classic Terminal</option>
-                      <option value="bubblegum">Bubblegum Pop</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Grid size={20} className="text-zinc-400" />
-                      <span className="font-medium">Board Size</span>
-                    </div>
-                    <select
-                      value={boardSize}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setBoardSize(
-                          isNaN(Number(val)) ? val : (Number(val) as BoardSize),
-                        );
-                      }}
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value={13}>13 x 13 (Fast)</option>
-                      <option value={15}>15 x 15 (Standard)</option>
-                      <option value={19}>19 x 19 (Pro)</option>
-                      <option value="19x35">19 x 35</option>
-                      <option value="19x40">19 x 40</option>
-                      <option value="19x45">19 x 45</option>
-                      <option value="19x50">19 x 50</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <BookOpen size={20} className="text-zinc-400" />
-                      <span className="font-medium">Rule Set</span>
-                    </div>
-                    <select
-                      value={ruleSet}
-                      onChange={(e) => setRuleSet(e.target.value as RuleSet)}
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="casual">Casual (Gomoku)</option>
-                      <option value="renju">Renju (Competitive)</option>
-                    </select>
-                  </div>
-                  {ruleSet === "renju" && (
-                    <div
-                      className="px-4 pb-4 -mt-2 space-y-3"
-                      id="renju-variant-options"
-                    >
-                      <p className="text-[10px] text-zinc-400 bg-zinc-50 p-2 rounded-lg border border-zinc-100">
-                        <Scale size={10} className="inline mr-1" />
-                        Customize Renju variant rules. These fouls apply only to
-                        the Black player (starting player).
-                      </p>
-                      <div className="space-y-2 pl-2">
-                        <div className="flex items-center justify-between group">
-                          <span className="text-xs font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors">
-                            Three Three (3x3)
-                          </span>
-                          <button
-                            id="toggle-double-three"
-                            onClick={() =>
-                              setRenjuRules((prev) => ({
-                                ...prev,
-                                doubleThree: !prev.doubleThree,
-                              }))
-                            }
-                            className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.doubleThree ? "bg-zinc-900" : "bg-zinc-200"}`}
-                            title={
-                              renjuRules.doubleThree
-                                ? "Double Three is forbidden"
-                                : "Double Three allowed"
-                            }
-                          >
-                            <div
-                              className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.doubleThree ? "left-6" : "left-1"}`}
-                            />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between group">
-                          <span className="text-xs font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors">
-                            Four Four (4x4)
-                          </span>
-                          <button
-                            id="toggle-double-four"
-                            onClick={() =>
-                              setRenjuRules((prev) => ({
-                                ...prev,
-                                doubleFour: !prev.doubleFour,
-                              }))
-                            }
-                            className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.doubleFour ? "bg-zinc-900" : "bg-zinc-200"}`}
-                            title={
-                              renjuRules.doubleFour
-                                ? "Double Four is forbidden"
-                                : "Double Four allowed"
-                            }
-                          >
-                            <div
-                              className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.doubleFour ? "left-6" : "left-1"}`}
-                            />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between group">
-                          <span className="text-xs font-medium text-zinc-600 group-hover:text-zinc-900 transition-colors">
-                            Long Four / Overline (6+)
-                          </span>
-                          <button
-                            id="toggle-overline"
-                            onClick={() =>
-                              setRenjuRules((prev) => ({
-                                ...prev,
-                                overline: !prev.overline,
-                              }))
-                            }
-                            className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.overline ? "bg-zinc-900" : "bg-zinc-200"}`}
-                            title={
-                              renjuRules.overline
-                                ? "Overline is forbidden"
-                                : "Overline allowed"
-                            }
-                          >
-                            <div
-                              className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.overline ? "left-6" : "left-1"}`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Cpu size={20} className="text-zinc-400" />
-                      <span className="font-medium">AI Difficulty</span>
-                    </div>
-                    <select
-                      value={aiDifficulty}
-                      onChange={(e) =>
-                        setAiDifficulty(e.target.value as Difficulty)
-                      }
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="Beginner">Beginner</option>
-                      <option value="Intermediate">Intermediate</option>
-                      <option value="Advanced">Advanced</option>
-                      <option value="Expert">Expert</option>
-                      <option value="Master">Master</option>
-                      <option value="Grandmaster">Grandmaster</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <UserCircle size={20} className="text-zinc-400" />
-                      <span className="font-medium">Who Starts (PvE)</span>
-                    </div>
-                    <select
-                      value={startingPlayer}
-                      onChange={(e) =>
-                        setStartingPlayer(e.target.value as StartingPlayer)
-                      }
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="human">Player (Black)</option>
-                      <option value="ai">AI (Black)</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <RefreshCw size={20} className="text-zinc-400" />
-                      <span className="font-medium">Time Limit (Per Turn)</span>
-                    </div>
-                    <select
-                      value={timeLimit}
-                      onChange={(e) =>
-                        setTimeLimitSetting(
-                          parseInt(e.target.value) as TimeLimit,
-                        )
-                      }
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="0">Unlimited</option>
-                      <option value="15">15 Seconds</option>
-                      <option value="30">30 Seconds</option>
-                      <option value="60">60 Seconds</option>
-                    </select>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Character & Theme
-                </h3>
-                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-                  <div className="p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3 mb-4">
-                      <User size={20} className="text-zinc-400" />
-                      <span className="font-medium">Select Character</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto custom-scrollbar pr-2">
-                      {[
-                        ...CHARACTERS,
-                        ...(userProfile?.customCharacters || []),
-                      ].filter(char => 
-                        userProfile?.unlockedCharacters?.includes(char.id) || ['master_lin'].includes(char.id) || char.isCustom
-                      ).map((char) => {
-                        const charColor = char.color
-                          ? COLOR_MAP[char.color.toLowerCase()] || char.color
-                          : "#6b7280";
-                        return (
-                          <motion.button
-                            whileTap={{ scale: 0.98 }}
-                            whileHover={{ scale: 1.02 }}
-                            key={char.id}
-                            onClick={() => {
-                              setSelectedCharacterId(char.id);
-                              setSelectedSkinId(char.defaultSkin);
-                            }}
-                            className={`relative flex items-center text-left p-3 rounded-2xl border-2 transition-all group ${
-                              selectedCharacterId === char.id
-                                ? "bg-white shadow-md ring-2 ring-offset-2"
-                                : "border-transparent bg-zinc-50/50 hover:bg-zinc-100 hover:shadow-sm"
-                            }`}
-                            style={{
-                              borderColor:
-                                selectedCharacterId === char.id
-                                  ? charColor
-                                  : "transparent",
-                              ringColor: charColor,
-                            }}
-                          >
-                            <div className="relative">
-                              <img
-                                src={char.avatar}
-                                alt={char.name}
-                                className="w-14 h-14 rounded-2xl object-cover bg-white shadow-sm border border-zinc-100 flex-shrink-0 transition-transform group-hover:scale-105"
-                                referrerPolicy="no-referrer"
-                              />
-                              <div
-                                className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm"
-                                style={{ backgroundColor: charColor }}
-                                title={`Color: ${char.color}`}
-                              />
-                            </div>
-                            <div className="ml-3 flex-1 overflow-hidden">
-                              <span className="text-sm font-bold text-zinc-900 block truncate">
-                                {char.name}
-                              </span>
-                              <span className="text-[10px] text-zinc-500 line-clamp-2 mt-0.5 leading-tight opacity-90">
-                                {char.bio}
-                              </span>
-                            </div>
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Palette size={20} className="text-zinc-400" />
-                      <span className="font-medium">Board & Stone Theme</span>
-                    </div>
-                    <div className="flex gap-4 overflow-x-auto pb-6 snap-x custom-scrollbar -mx-2 px-2">
-                      {allSkins.map((skin) => {
-                        const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(
-                          skin.blackStone,
-                        );
-                        const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(
-                          skin.whiteStone,
-                        );
-                        return (
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            whileHover={{ scale: 1.05, y: -4 }}
-                            key={
-                              skin.id + (skin.isCustom ? `_${skin.name}` : "")
-                            }
-                            onClick={() => setSelectedSkinId(skin.id)}
-                            className={`flex flex-col flex-shrink-0 items-center p-4 rounded-[2rem] border-[3px] transition-all w-36 snap-start relative overflow-hidden ${
-                              selectedSkinId === skin.id
-                                ? "border-zinc-900 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
-                                : "border-transparent bg-zinc-50 hover:bg-zinc-100/80 shadow-sm"
-                            }`}
-                          >
-                            {selectedSkinId === skin.id && (
-                              <div className="absolute top-2 right-2 w-5 h-5 bg-zinc-900 rounded-full flex items-center justify-center text-white z-10">
-                                <Check size={12} strokeWidth={4} />
-                              </div>
-                            )}
-                            <div
-                              className="w-full h-20 rounded-2xl mb-4 flex items-center justify-center gap-3 shadow-inner relative overflow-hidden"
-                              style={{ backgroundColor: skin.boardColor }}
-                            >
-                              <div
-                                className="absolute inset-0 opacity-20 pointer-events-none"
-                                style={{
-                                  backgroundImage:
-                                    "linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000), linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000)",
-                                  backgroundSize: "10px 10px",
-                                  backgroundPosition: "0 0, 5px 5px",
-                                }}
-                              />
-                              <div
-                                className={`w-6 h-6 rounded-full shadow-lg border border-black/10 z-10 ${!isBlackHex ? skin.blackStone : ""}`}
-                                style={
-                                  isBlackHex
-                                    ? { backgroundColor: skin.blackStone }
-                                    : {}
-                                }
-                              />
-                              <div
-                                className={`w-6 h-6 rounded-full shadow-lg border border-black/10 z-10 ${!isWhiteHex ? skin.whiteStone : ""}`}
-                                style={
-                                  isWhiteHex
-                                    ? { backgroundColor: skin.whiteStone }
-                                    : {}
-                                }
-                              />
-                            </div>
-                            <span
-                              className={`text-sm font-black text-center leading-tight ${selectedSkinId === skin.id ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"}`}
-                            >
-                              {skin.name}
-                            </span>
-                            {skin.serialNumber && (
-                              <div className={`flex items-center gap-1 mt-1 text-[8px] uppercase font-mono font-bold tracking-widest ${selectedSkinId === skin.id ? "text-zinc-600" : "text-zinc-400"}`}>
-                                <QrCode size={10} />
-                                <span>{skin.serialNumber}</span>
-                              </div>
-                            )}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Appearance
-                </h3>
-                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Sun size={20} className="text-zinc-400" />
-                      <span className="font-medium">Theme</span>
-                    </div>
-                    <select className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900">
-                      <option>System</option>
-                      <option>Light</option>
-                      <option>Dark</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <Monitor size={20} className="text-zinc-400" />
-                      <span className="font-medium">Animations</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        defaultChecked
-                      />
-                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
-                    </label>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Preferences
-                </h3>
-                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Globe size={20} className="text-zinc-400" />
-                      <span className="font-medium">App Language</span>
-                    </div>
-                    <select
-                      value={appLanguage}
-                      onChange={(e) => setAppLanguage(e.target.value)}
-                      className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="en">English (US)</option>
-                      <option value="en-gb">English (UK)</option>
-                      <option value="fr">Français</option>
-                      <option value="es">Español</option>
-                      <option value="de">Deutsch</option>
-                      <option value="zh">中文</option>
-                      <option value="ja">日本語</option>
-                    </select>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Palette size={20} className="text-zinc-400" />
-                      <span className="font-medium">Custom Board Theme</span>
-                    </div>
-                    <button
-                      onClick={() => setIsCreatingSkin(true)}
-                      className="bg-zinc-900 text-white rounded-xl px-4 py-2 font-medium text-sm hover:bg-zinc-800 transition-colors"
-                    >
-                      Open Designer
-                    </button>
-                  </div>
-                  <div className="flex flex-col p-4 gap-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Smartphone size={20} className="text-zinc-400" />
-                        <span className="font-medium">App Icon Personalization</span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4 pt-2 border-t border-zinc-100">
-                      <div>
-                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Color Palette</div>
-                        <div className="flex items-center flex-wrap gap-2">
-                          {Object.entries(APP_ICON_COLORS).map(([id, hex]) => (
-                            <button
-                              key={id}
-                              onClick={() => setAppIconColor(id)}
-                              className={`w-8 h-8 rounded-full shrink-0 transition-all shadow-sm ${appIconColor === id ? 'scale-110 ring-2 ring-offset-2 ring-zinc-900 border-2 border-white' : 'hover:scale-110 border border-white opacity-80 hover:opacity-100'}`}
-                              style={{ backgroundColor: hex }}
-                              title={`Color: ${id}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-2">
-                        <div className="text-xs font-semibold text-zinc-500 mb-3 uppercase tracking-wider">Icon Shape</div>
-                        <div className="flex items-center flex-wrap gap-2">
-                          {[
-                            { id: 'roiva', name: 'Roïva' }, { id: 'triangle', name: 'Triangle' },
-                            { id: 'hexagone', name: 'Hexagone' }, { id: 'etoile', name: 'Étoile' },
-                            { id: 'bouclier', name: 'Bouclier' }, { id: 'goutte', name: 'Goutte' },
-                            { id: 'cercle', name: 'Cercle' }, { id: 'carre', name: 'Carré' },
-                            { id: 'losange', name: 'Losange' }, { id: 'coeur', name: 'Cœur' },
-                            { id: 'lune', name: 'Lune' }, { id: 'nuage', name: 'Nuage' },
-                            { id: 'fleur', name: 'Fleur' }, { id: 'eclair', name: 'Écl.' },
-                            { id: 'pentagone', name: 'Penta.' }, { id: 'octogone', name: 'Octo.' },
-                            { id: 'soleil', name: 'Soleil' }, { id: 'couronne', name: 'Couronne' },
-                            { id: 'feuille', name: 'Feuille' }, { id: 'oeil', name: 'Œil' }
-                          ].map(shape => (
-                            <button
-                              key={shape.id}
-                              onClick={() => setAppIconShape(shape.id)}
-                              className={`px-3 py-1.5 text-xs font-semibold rounded-xl shrink-0 transition-all border ${appIconShape === shape.id ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'}`}
-                            >
-                              {shape.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 mt-2 bg-zinc-50 rounded-2xl border border-zinc-100 opacity-90 overflow-hidden">
-                        <img 
-                          src={`/api/icon?color=${encodeURIComponent(APP_ICON_COLORS[appIconColor] || APP_ICON_COLORS.indigo)}&shape=${appIconShape}&format=svg`} 
-                          alt="Preview" 
-                          className="w-16 h-16 shadow-sm rounded-2xl shrink-0" 
-                        />
-                        <div className="text-sm text-zinc-600 font-medium text-center sm:text-left break-words">
-                          Your custom SVG application icon dynamically generated! 
-                          <br/><span className="text-zinc-400 text-xs mt-1 block">Live updating manifest and favicon...</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Audio
-                </h3>
-                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Volume2 size={20} className="text-zinc-400" />
-                      <span className="font-medium">Sound Effects</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={soundEnabled}
-                        onChange={(e) => setSoundEnabled(e.target.checked)}
-                      />
-                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
-                    </label>
-                  </div>
-                  {soundEnabled && (
-                    <>
-                      <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
-                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight shrink-0">Placement Sound</span>
-                        <select
-                           value={selectedSound}
-                           onChange={(e) => {
-                             const val = e.target.value;
-                             setSelectedSound(val);
-                             if (userProfile) setUserProfile({ ...userProfile, selectedSound: val });
-                           }}
-                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-32 sm:w-48 text-zinc-700 shadow-sm shrink-0 truncate"
-                        >
-                           <option value="default">Default Tone</option>
-                           <option value="laser">Sci-Fi Laser</option>
-                           <option value="heavy">Heavy Thud</option>
-                           {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
-                             <option key={s.id} value={s.id}>{s.name}</option>
-                           ))}
-                        </select>
-                      </div>
-                      <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
-                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight shrink-0">Victory Sound</span>
-                        <select
-                           value={selectedWinSound}
-                           onChange={(e) => {
-                             const val = e.target.value;
-                             setSelectedWinSound(val);
-                             if (userProfile) setUserProfile({ ...userProfile, selectedWinSound: val });
-                           }}
-                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-32 sm:w-48 text-zinc-700 shadow-sm shrink-0 truncate"
-                        >
-                           <option value="default">Default Tone</option>
-                           <option value="laser">Sci-Fi Laser</option>
-                           <option value="heavy">Heavy Thud</option>
-                           {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
-                             <option key={s.id} value={s.id}>{s.name}</option>
-                           ))}
-                        </select>
-                      </div>
-                      <div className="flex items-center justify-between p-4 border-b border-zinc-100 bg-zinc-50/30">
-                        <span className="font-medium text-sm pl-9 text-zinc-600 tracking-tight shrink-0">Defeat Sound</span>
-                        <select
-                           value={selectedLossSound}
-                           onChange={(e) => {
-                             const val = e.target.value;
-                             setSelectedLossSound(val);
-                             if (userProfile) setUserProfile({ ...userProfile, selectedLossSound: val });
-                           }}
-                           className="bg-white border border-zinc-200 rounded-lg px-2 py-1 text-sm outline-none w-32 sm:w-48 text-zinc-700 shadow-sm shrink-0 truncate"
-                        >
-                           <option value="default">Default Tone</option>
-                           <option value="laser">Sci-Fi Laser</option>
-                           <option value="heavy">Heavy Thud</option>
-                           {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
-                             <option key={s.id} value={s.id}>{s.name}</option>
-                           ))}
-                        </select>
-                      </div>
-                    </>
-                  )}
-                  <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-                    <div className="flex items-center gap-3">
-                      <Music size={20} className="text-zinc-400" />
-                      <span className="font-medium">Background Music</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={musicEnabled}
-                        onChange={(e) => setMusicEnabled(e.target.checked)}
-                      />
-                      <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
-                    </label>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wider mb-4">
-                  Account
-                </h3>
-                <div className="bg-white rounded-3xl border border-zinc-100 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 bg-zinc-50/50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-white overflow-hidden shadow-sm">
-                        {user?.photoURL ? (
-                          <img
-                            src={user.photoURL}
-                            alt="Profile"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <User size={24} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-bold text-zinc-900">
-                          {user?.displayName || "Player"}
-                        </p>
-                        <p className="text-xs font-medium text-zinc-500">
-                          {user?.email}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        logout();
-                        setCurrentScreen("home");
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-rose-100 transition-colors"
-                    >
-                      <LogOut size={16} />
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              {/* Danger Zone */}
-              {user && (
-                <div className="pt-8 border-t border-zinc-100">
-                  <h4 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4">
-                    Zone de Danger
-                  </h4>
+            {/* Tab Navigation */}
+            <div className="flex p-1 bg-zinc-100 rounded-2xl mb-8 shrink-0 shadow-inner">
+              {[
+                { id: "gameplay", label: "Play", icon: Gamepad2 },
+                { id: "visuals", label: "Look", icon: Palette },
+                { id: "sound", label: "Audio", icon: Volume2 },
+                { id: "account", label: "User", icon: UserCircle },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeSettingsTab === tab.id;
+                return (
                   <button
-                    onClick={deleteAccount}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors"
+                    key={tab.id}
+                    onClick={() => setActiveSettingsTab(tab.id as any)}
+                    className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2.5 sm:py-3 rounded-xl font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all duration-300 ${
+                      isActive
+                        ? "bg-white text-zinc-900 shadow-sm scale-[1.02] translate-y-[-1px]"
+                        : "text-zinc-400 hover:text-zinc-600 hover:bg-white/50"
+                    }`}
                   >
-                    <X size={20} />
-                    Supprimer mon compte et mes données
+                    <Icon size={isActive ? 18 : 16} className={isActive ? "text-emerald-500" : ""} />
+                    <span>{tab.label}</span>
                   </button>
-                  <p className="mt-4 text-[10px] text-zinc-400 text-center leading-relaxed">
-                    Conformément au RGPD, vous avez le droit à l'effacement de
-                    vos données. Cette action supprimera définitivement votre
-                    profil, votre ELO et votre historique de matchs.
-                  </p>
-                </div>
-              )}
+                );
+              })}
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar pb-10 pr-1">
+              <AnimatePresence mode="wait">
+                {activeSettingsTab === "gameplay" && (
+                  <motion.div
+                    key="gameplay"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <section>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Game Mechanics</h3>
+                      <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm">
+                        {/* Board Size */}
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-blue-50 text-blue-500 rounded-xl"><Grid size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Board Size</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Grid dimensions for gameplay</p>
+                            </div>
+                          </div>
+                          <select
+                            value={boardSize}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBoardSize(isNaN(Number(val)) ? val : (Number(val) as BoardSize));
+                            }}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value={13}>13 x 13 (Fast)</option>
+                            <option value={15}>15 x 15 (Standard)</option>
+                            <option value={19}>19 x 19 (Pro)</option>
+                            <option value="19x35">19 x 35</option>
+                            <option value="19x40">19 x 40</option>
+                            <option value="19x45">19 x 45</option>
+                            <option value="19x50">19 x 50</option>
+                          </select>
+                        </div>
+
+                        {/* Rule Set */}
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-amber-50 text-amber-500 rounded-xl"><BookOpen size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Rule Set</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Casual Gomoku or Renju</p>
+                            </div>
+                          </div>
+                          <select
+                            value={ruleSet}
+                            onChange={(e) => setRuleSet(e.target.value as RuleSet)}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value="casual">Casual (Gomoku)</option>
+                            <option value="renju">Renju (Competitive)</option>
+                          </select>
+                        </div>
+
+                        {ruleSet === "renju" && (
+                          <div className="px-5 py-4 bg-zinc-50/50 border-b border-zinc-100 space-y-4">
+                            <p className="text-[10px] text-zinc-400 bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm leading-relaxed">
+                              <Scale size={10} className="inline mr-1" />
+                              Renju fouls apply to Black (starting player). These rules balance the first-move advantage.
+                            </p>
+                            <div className="space-y-3 pl-2">
+                              <div className="flex items-center justify-between group">
+                                <span className="text-xs font-bold text-zinc-600 group-hover:text-zinc-900 transition-colors">
+                                  Three Three (3x3)
+                                </span>
+                                <button
+                                  onClick={() => setRenjuRules((prev) => ({ ...prev, doubleThree: !prev.doubleThree }))}
+                                  className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.doubleThree ? "bg-zinc-900" : "bg-zinc-200"}`}
+                                >
+                                  <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.doubleThree ? "left-6" : "left-1"}`} />
+                                </button>
+                              </div>
+                              <div className="flex items-center justify-between group">
+                                <span className="text-xs font-bold text-zinc-600 group-hover:text-zinc-900 transition-colors">
+                                  Four Four (4x4)
+                                </span>
+                                <button
+                                  onClick={() => setRenjuRules((prev) => ({ ...prev, doubleFour: !prev.doubleFour }))}
+                                  className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.doubleFour ? "bg-zinc-900" : "bg-zinc-200"}`}
+                                >
+                                  <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.doubleFour ? "left-6" : "left-1"}`} />
+                                </button>
+                              </div>
+                              <div className="flex items-center justify-between group">
+                                <span className="text-xs font-bold text-zinc-600 group-hover:text-zinc-900 transition-colors">
+                                  Long Four / Overline
+                                </span>
+                                <button
+                                  onClick={() => setRenjuRules((prev) => ({ ...prev, overline: !prev.overline }))}
+                                  className={`w-10 h-5 rounded-full transition-all relative ${renjuRules.overline ? "bg-zinc-900" : "bg-zinc-200"}`}
+                                >
+                                  <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-all ${renjuRules.overline ? "left-6" : "left-1"}`} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-purple-50 text-purple-500 rounded-xl"><Cpu size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">AI Difficulty</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Difficulty Level</p>
+                            </div>
+                          </div>
+                          <select
+                            value={aiDifficulty}
+                            onChange={(e) => setAiDifficulty(e.target.value as Difficulty)}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value="Beginner">Beginner</option>
+                            <option value="Intermediate">Intermediate</option>
+                            <option value="Advanced">Advanced</option>
+                            <option value="Expert">Expert</option>
+                            <option value="Master">Master</option>
+                            <option value="Grandmaster">Grandmaster</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-emerald-50 text-emerald-500 rounded-xl"><Target size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Who Starts (PvE)</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Player side</p>
+                            </div>
+                          </div>
+                          <select
+                            value={startingPlayer}
+                            onChange={(e) => setStartingPlayer(e.target.value as StartingPlayer)}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value="human">Player (Black)</option>
+                            <option value="ai">AI (Black)</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-rose-50 text-rose-500 rounded-xl"><Clock size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Time Limit</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Seconds per turn</p>
+                            </div>
+                          </div>
+                          <select
+                            value={timeLimit}
+                            onChange={(e) => setTimeLimitSetting(parseInt(e.target.value) as TimeLimit)}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value="0">Unlimited</option>
+                            <option value="15">15s</option>
+                            <option value="30">30s</option>
+                            <option value="60">60s</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-between p-5 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-indigo-50 text-indigo-500 rounded-xl"><Globe size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Language</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Interface language</p>
+                            </div>
+                          </div>
+                          <select
+                            value={appLanguage}
+                            onChange={(e) => setAppLanguage(e.target.value)}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value="en">English (US)</option>
+                            <option value="en-gb">English (UK)</option>
+                            <option value="fr">Français</option>
+                            <option value="es">Español</option>
+                            <option value="de">Deutsch</option>
+                            <option value="zh">中文</option>
+                            <option value="ja">日本語</option>
+                          </select>
+                        </div>
+                      </div>
+                    </section>
+                  </motion.div>
+                )}
+
+                {activeSettingsTab === "visuals" && (
+                  <motion.div
+                    key="visuals"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <section>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Appearance</h3>
+                      <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm">
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-violet-50 text-violet-500 rounded-xl"><Monitor size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">UI Style</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">App visual theme</p>
+                            </div>
+                          </div>
+                          <select
+                            value={uiStyle}
+                            onChange={(e) => setUiStyle(e.target.value as UiStyle)}
+                            className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 appearance-none"
+                          >
+                            <option value="modern">Modern Glass</option>
+                            <option value="zen">Zen Paper</option>
+                            <option value="pixel">8-Bit Arcade</option>
+                            <option value="cyberpunk">Cyberpunk Neon</option>
+                            <option value="monochrome">Editorial Monochrome</option>
+                            <option value="retro">70s Retro</option>
+                            <option value="midnight">Deep Midnight</option>
+                            <option value="nature">Nature Forest</option>
+                            <option value="terminal">Classic Terminal</option>
+                            <option value="bubblegum">Bubblegum Pop</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-cyan-50 text-cyan-500 rounded-xl"><Box size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Immersive 3D</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Dynamic 3D board view</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setIs3D(!is3D)}
+                            className={`w-12 h-6 rounded-full transition-all relative ${is3D ? "bg-zinc-900" : "bg-zinc-200"}`}
+                          >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${is3D ? "left-7" : "left-1"}`} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-5 hover:bg-zinc-50/50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-orange-50 text-orange-500 rounded-xl"><Activity size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Animations</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Smooth UI transitions</p>
+                            </div>
+                          </div>
+                          <button
+                            className={`w-12 h-6 rounded-full bg-zinc-900 relative transition-all`}
+                          >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm left-7 transition-all`} />
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Character & Skins</h3>
+                      <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm p-5 space-y-6">
+                        <div>
+                          <div className="flex items-center gap-3 mb-4">
+                            <UserCircle size={20} className="text-zinc-400" />
+                            <span className="font-bold text-sm text-zinc-900 uppercase tracking-tighter">Select Character</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                            {[
+                              ...CHARACTERS,
+                              ...(userProfile?.customCharacters || []),
+                            ].filter(char => 
+                              userProfile?.unlockedCharacters?.includes(char.id) || ['master_lin'].includes(char.id) || char.isCustom
+                            ).map((char) => {
+                              const charColor = char.color
+                                ? COLOR_MAP[char.color.toLowerCase()] || char.color
+                                : "#6b7280";
+                              return (
+                                <motion.button
+                                  whileTap={{ scale: 0.98 }}
+                                  whileHover={{ scale: 1.02 }}
+                                  key={char.id}
+                                  onClick={() => {
+                                    setSelectedCharacterId(char.id);
+                                    setSelectedSkinId(char.defaultSkin);
+                                  }}
+                                  className={`relative flex items-center text-left p-3 rounded-2xl border-2 transition-all group ${
+                                    selectedCharacterId === char.id
+                                      ? "bg-white shadow-md ring-2 ring-offset-2"
+                                      : "border-transparent bg-zinc-50/50 hover:bg-zinc-100 hover:shadow-sm"
+                                  }`}
+                                  style={{
+                                    borderColor: selectedCharacterId === char.id ? charColor : "transparent",
+                                    boxShadow: selectedCharacterId === char.id ? `0 0 0 2px ${charColor}` : "none",
+                                  }}
+                                >
+                                  <div className="relative">
+                                    <img
+                                      src={char.avatar}
+                                      alt={char.name}
+                                      className="w-12 h-12 rounded-xl object-cover bg-white shadow-sm border border-zinc-100 flex-shrink-0"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div
+                                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                                      style={{ backgroundColor: charColor }}
+                                    />
+                                  </div>
+                                  <div className="ml-3 flex-1 overflow-hidden">
+                                    <span className="text-xs font-black text-zinc-900 block truncate leading-tight uppercase italic tracking-tighter">
+                                      {char.name}
+                                    </span>
+                                    <span className="text-[9px] text-zinc-500 line-clamp-1 mt-0.5 opacity-90 font-bold uppercase tracking-tight">
+                                      {char.bio}
+                                    </span>
+                                  </div>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="pt-6 border-t border-zinc-50">
+                          <div className="flex items-center gap-3 mb-4">
+                            <Palette size={20} className="text-zinc-400" />
+                            <span className="font-bold text-sm text-zinc-900 uppercase tracking-tighter">Board & Stone Theme</span>
+                          </div>
+                          <div className="flex gap-4 overflow-x-auto pb-4 snap-x custom-scrollbar -mx-2 px-2">
+                            {allSkins.map((skin) => {
+                              const isBlackHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.blackStone);
+                              const isWhiteHex = /^#([0-9A-F]{3}){1,2}$/i.test(skin.whiteStone);
+                              return (
+                                <motion.button
+                                  whileTap={{ scale: 0.95 }}
+                                  whileHover={{ y: -4 }}
+                                  key={skin.id + (skin.isCustom ? `_${skin.name}` : "")}
+                                  onClick={() => setSelectedSkinId(skin.id)}
+                                  className={`flex flex-col flex-shrink-0 items-center p-3 rounded-[2rem] border-[3px] transition-all w-32 snap-start relative ${
+                                    selectedSkinId === skin.id
+                                      ? "border-zinc-900 bg-white shadow-lg"
+                                      : "border-transparent bg-zinc-50 hover:bg-zinc-100 shadow-sm"
+                                  }`}
+                                >
+                                  {selectedSkinId === skin.id && (
+                                    <div className="absolute top-2 right-2 w-4 h-4 bg-zinc-900 rounded-full flex items-center justify-center text-white z-10">
+                                      <Check size={10} strokeWidth={4} />
+                                    </div>
+                                  )}
+                                  <div
+                                    className="w-full h-16 rounded-2xl mb-3 flex items-center justify-center gap-2 shadow-inner relative overflow-hidden"
+                                    style={{ backgroundColor: skin.boardColor }}
+                                  >
+                                    <div
+                                      className={`w-5 h-5 rounded-full shadow-lg border border-black/10 z-10 ${!isBlackHex ? skin.blackStone : ""}`}
+                                      style={isBlackHex ? { backgroundColor: skin.blackStone } : {}}
+                                    />
+                                    <div
+                                      className={`w-5 h-5 rounded-full shadow-lg border border-black/10 z-10 ${!isWhiteHex ? skin.whiteStone : ""}`}
+                                      style={isWhiteHex ? { backgroundColor: skin.whiteStone } : {}}
+                                    />
+                                  </div>
+                                  <span className={`text-[10px] font-black text-center leading-tight uppercase tracking-tighter truncate w-full ${selectedSkinId === skin.id ? "text-zinc-900" : "text-zinc-400"}`}>
+                                    {skin.name}
+                                  </span>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Personalization</h3>
+                      <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm">
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-pink-50 text-pink-500 rounded-xl"><Plus size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Custom Theme Designer</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Create unique board styles</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setIsCreatingSkin(true)}
+                            className="bg-zinc-900 text-white rounded-xl px-4 py-2 font-black text-[10px] uppercase tracking-widest hover:bg-zinc-800 transition-colors"
+                          >
+                            Designer
+                          </button>
+                        </div>
+
+                        <div className="p-5">
+                          <div className="flex items-center gap-4 mb-4">
+                             <div className="p-2.5 bg-yellow-50 text-yellow-500 rounded-xl"><Smartphone size={20} /></div>
+                             <p className="font-bold text-sm text-zinc-900">App Icon & Colors</p>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <div className="text-[9px] font-black text-zinc-400 mb-3 uppercase tracking-widest">Icon Palette</div>
+                              <div className="flex items-center flex-wrap gap-2">
+                                {Object.entries(APP_ICON_COLORS).map(([id, hex]) => (
+                                  <button
+                                    key={id}
+                                    onClick={() => setAppIconColor(id)}
+                                    className={`w-7 h-7 rounded-full shrink-0 transition-all shadow-sm ${appIconColor === id ? 'scale-110 ring-2 ring-offset-2 ring-zinc-900 border-2 border-white' : 'hover:scale-110 opacity-70 hover:opacity-100'}`}
+                                    style={{ backgroundColor: hex }}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                              <img 
+                                src={`/api/icon?color=${encodeURIComponent(APP_ICON_COLORS[appIconColor] || APP_ICON_COLORS.indigo)}&shape=${appIconShape}&format=svg`} 
+                                alt="Preview" 
+                                className="w-12 h-12 shadow-sm rounded-xl shrink-0" 
+                              />
+                               <div className="flex flex-wrap gap-2 flex-1">
+                                {[
+                                  { id: 'roiva', name: 'Roïva' }, { id: 'hexagone', name: 'Hex.' },
+                                  { id: 'etoile', name: 'Star' }, { id: 'cercle', name: 'Circle' },
+                                  { id: 'carre', name: 'Square' }, { id: 'coeur', name: 'Heart' }
+                                ].map(shape => (
+                                  <button
+                                    key={shape.id}
+                                    onClick={() => setAppIconShape(shape.id)}
+                                    className={`px-3 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all border ${appIconShape === shape.id ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-400 border-zinc-200 hover:text-zinc-600'}`}
+                                  >
+                                    {shape.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </motion.div>
+                )}
+
+                {activeSettingsTab === "sound" && (
+                  <motion.div
+                    key="sound"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <section>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Audio Control</h3>
+                      <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm">
+                        <div className="flex items-center justify-between p-5 border-b border-zinc-50">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-emerald-50 text-emerald-500 rounded-xl"><Volume2 size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Sound Effects</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Interaction & Move feedback</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setSoundEnabled(!soundEnabled)}
+                            className={`w-12 h-6 rounded-full transition-all relative ${soundEnabled ? "bg-zinc-900" : "bg-zinc-200"}`}
+                          >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${soundEnabled ? "left-7" : "left-1"}`} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between p-5">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2.5 bg-blue-50 text-blue-500 rounded-xl"><Music size={20} /></div>
+                            <div>
+                              <p className="font-bold text-sm text-zinc-900">Ambient Music</p>
+                              <p className="text-[10px] text-zinc-400 font-medium">Background soundscape</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setMusicEnabled(!musicEnabled)}
+                            className={`w-12 h-6 rounded-full transition-all relative ${musicEnabled ? "bg-zinc-900" : "bg-zinc-200"}`}
+                          >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${musicEnabled ? "left-7" : "left-1"}`} />
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+
+                    {soundEnabled && (
+                      <section>
+                        <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Sound Library</h3>
+                        <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm">
+                          {[
+                            { label: "Stone Placement", value: selectedSound, setter: setSelectedSound, profileKey: 'selectedSound' },
+                            { label: "Victory Theme", value: selectedWinSound, setter: setSelectedWinSound, profileKey: 'selectedWinSound' },
+                            { label: "Defeat Theme", value: selectedLossSound, setter: setSelectedLossSound, profileKey: 'selectedLossSound' }
+                          ].map((item, idx) => (
+                            <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border-b border-zinc-50 last:border-0">
+                              <span className="font-bold text-xs uppercase tracking-tight text-zinc-500 mb-2 sm:mb-0">{item.label}</span>
+                              <select
+                                value={item.value as string}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  item.setter(val);
+                                  if (userProfile) onUpdateProfile({ [item.profileKey]: val });
+                                }}
+                                className="bg-zinc-100 border-none rounded-xl px-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-zinc-900 w-full sm:w-48"
+                              >
+                                <option value="default">Default Tone</option>
+                                <option value="laser">Sci-Fi Laser</option>
+                                <option value="heavy">Heavy Thud</option>
+                                {SHOP_SOUNDS.filter(s => userProfile?.unlockedSounds?.includes(s.id)).map(s => (
+                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </motion.div>
+                )}
+
+                {activeSettingsTab === "account" && (
+                  <motion.div
+                    key="account"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <section>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-3 ml-4">Profile</h3>
+                      <div className="bg-white rounded-[2rem] border border-zinc-100 overflow-hidden shadow-sm p-6 flex flex-col items-center text-center">
+                        <div className="w-24 h-24 rounded-[2.5rem] bg-zinc-900 p-1 mb-4 shadow-xl">
+                          <div className="w-full h-full rounded-[2.2rem] overflow-hidden bg-white flex items-center justify-center">
+                            {user?.photoURL ? (
+                              <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              <User size={40} className="text-zinc-300" />
+                            )}
+                          </div>
+                        </div>
+                        <h4 className="text-lg font-black tracking-tight">{user?.displayName || "Guest Player"}</h4>
+                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{user?.email || "No email connected"}</p>
+                        
+                        <div className="mt-8 pt-8 border-t border-zinc-50 w-full flex flex-col gap-3">
+                           <button
+                            onClick={() => { logout(); setCurrentScreen("home"); }}
+                            className="w-full py-4 bg-zinc-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-zinc-800 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-3"
+                          >
+                            <LogOut size={18} />
+                            Logout Session
+                          </button>
+                          
+                          {user && (
+                            <button
+                              onClick={deleteAccount}
+                              className="w-full py-4 bg-rose-50 text-rose-600 rounded-2xl font-bold text-[10px] uppercase tracking-widest hover:bg-rose-100 transition-colors"
+                            >
+                              Supprimer mon compte (RGPD)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         )}
@@ -6408,7 +6429,10 @@ export function AppScreens() {
             exit={{ opacity: 0, y: -20 }}
             className="absolute inset-0"
           >
-            <OpeningExplorer onBack={() => setCurrentScreen("home")} />
+            <OpeningExplorer 
+              onBack={() => setCurrentScreen("home")} 
+              is3D={is3D}
+            />
           </motion.div>
         )}
         {currentScreen === "daily" && (
@@ -6423,6 +6447,7 @@ export function AppScreens() {
               onBack={() => setCurrentScreen("home")} 
               userProfile={userProfile}
               onUpdateProfile={handleUpdateProfile}
+              is3D={is3D}
             />
           </motion.div>
         )}
@@ -6467,7 +6492,7 @@ export function AppScreens() {
               </header>
 
               <section className="mb-12">
-                <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-xl flex flex-col md:flex-row items-center gap-8">
+                <div className="bg-white rounded-[2.5rem] p-8 border border-zinc-100 shadow-xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
                   <div className="relative group">
                     <img
                       src={userProfile?.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${userProfile?.displayName || 'User'}`}
@@ -6485,17 +6510,93 @@ export function AppScreens() {
                       <RefreshCw size={24} className="text-white" />
                     </div>
                   </div>
-                  <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-3xl font-black tracking-tighter mb-1">
-                      {userProfile?.displayName}
-                    </h3>
-                    <p className="text-zinc-400 font-bold text-sm tracking-widest uppercase mb-4">
-                      {playerElo} ELO • {getRankTier(playerElo).name}
-                    </p>
-                    <p className="text-zinc-600 font-medium leading-relaxed max-w-md">
-                      {userProfile?.bio ||
-                        "No bio yet. Tell the world about your Gomoku strategy!"}
-                    </p>
+                  <div className="flex-1 text-center md:text-left w-full">
+                    {isEditingProfile ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1">Display Name</label>
+                          <input
+                            type="text"
+                            value={editDisplayName}
+                            onChange={(e) => setEditDisplayName(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 font-bold text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-900 transition-all text-xl"
+                            placeholder="Enter your name..."
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 block mb-1">Bio</label>
+                          <textarea
+                            value={editBio}
+                            onChange={(e) => setEditBio(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-4 py-3 font-medium text-zinc-600 outline-none focus:ring-2 focus:ring-zinc-900 transition-all min-h-[100px] resize-none"
+                            placeholder="Tell us about yourself..."
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={saveProfile}
+                            className="bg-zinc-900 text-white px-6 py-2.5 rounded-2xl font-black text-sm shadow-lg shadow-zinc-900/20 hover:scale-105 active:scale-95 transition-all"
+                          >
+                            Save Changes
+                          </button>
+                          <button
+                            onClick={() => setIsEditingProfile(false)}
+                            className="bg-zinc-100 text-zinc-600 px-6 py-2.5 rounded-2xl font-black text-sm hover:bg-zinc-200 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-center md:justify-start gap-4 mb-1">
+                          <h3 className="text-3xl font-black tracking-tighter">
+                            {userProfile?.displayName}
+                          </h3>
+                          <button
+                            onClick={() => {
+                              setEditDisplayName(userProfile?.displayName || "");
+                              setEditBio(userProfile?.bio || "");
+                              setIsEditingProfile(true);
+                            }}
+                            className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors text-zinc-500"
+                            title="Edit Profile"
+                          >
+                            <Settings size={16} />
+                          </button>
+                        </div>
+                        <p className="text-zinc-400 font-bold text-sm tracking-widest uppercase mb-4">
+                          {playerElo} ELO • {getRankTier(playerElo).name}
+                        </p>
+                        <p className="text-zinc-600 font-medium leading-relaxed max-w-md">
+                          {userProfile?.bio ||
+                            "No bio yet. Tell the world about your Gomoku strategy!"}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* Match Summary Section */}
+              <section className="mb-12">
+                <h3 className="text-sm font-black text-zinc-400 uppercase tracking-widest mb-6 px-2">Match Performance</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm text-center">
+                    <p className="text-3xl font-black text-zinc-900 mb-1">{userProfile?.stats?.totalGames || 0}</p>
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Games</p>
+                  </div>
+                  <div className="bg-emerald-50 p-6 rounded-[2rem] border border-emerald-100 shadow-sm text-center">
+                    <p className="text-3xl font-black text-emerald-600 mb-1">{userProfile?.stats?.wins || 0}</p>
+                    <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Wins</p>
+                  </div>
+                  <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100 shadow-sm text-center">
+                    <p className="text-3xl font-black text-rose-600 mb-1">{userProfile?.stats?.losses || 0}</p>
+                    <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Losses</p>
+                  </div>
+                  <div className="bg-zinc-100 p-6 rounded-[2rem] border border-zinc-200 shadow-sm text-center">
+                    <p className="text-3xl font-black text-zinc-600 mb-1">{userProfile?.stats?.draws || 0}</p>
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Draws</p>
                   </div>
                 </div>
               </section>

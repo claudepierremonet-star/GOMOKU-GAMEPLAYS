@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { GomokuBoard } from "./GomokuBoard";
+import { GomokuBoard3D } from "./GomokuBoard3D";
 import { BoardState, createEmptyBoard, checkWin, Player } from "../game/engine";
 import { SKINS, UserProfile, Puzzle } from '../types';
 import { REAL_PUZZLES } from '../puzzlesDB';
@@ -22,9 +23,10 @@ interface DailyPuzzleProps {
   onBack: () => void;
   userProfile: UserProfile | null;
   onUpdateProfile: (updates: Partial<UserProfile>) => void;
+  is3D?: boolean;
 }
 
-export function DailyPuzzle({ onBack, userProfile, onUpdateProfile }: DailyPuzzleProps) {
+export function DailyPuzzle({ onBack, userProfile, onUpdateProfile, is3D = false }: DailyPuzzleProps) {
   const [puzzleIndex, setPuzzleIndex] = useState(() => {
     // Pick a puzzle based on the current date
     const day = new Date().getUTCDate();
@@ -321,12 +323,23 @@ export function DailyPuzzle({ onBack, userProfile, onUpdateProfile }: DailyPuzzl
               </AnimatePresence>
 
               <div className="w-full h-full" style={{ containerType: "size" }}>
-                <GomokuBoard 
-                  board={board} 
-                  onCellClick={handleCellClick} 
-                  skin={SKINS[0]} 
-                  highlightLastMove={status !== 'playing'}
-                />
+                {is3D ? (
+                  <GomokuBoard3D
+                    board={board}
+                    onCellClick={handleCellClick}
+                    winningLine={null}
+                    lastMove={history.length > 0 ? history[history.length - 1] : null}
+                    skin={SKINS[0]}
+                  />
+                ) : (
+                  <GomokuBoard 
+                    board={board} 
+                    onCellClick={handleCellClick} 
+                    skin={SKINS[0]} 
+                    winningLine={null}
+                    lastMove={status !== 'playing' ? (history.length > 0 ? history[history.length - 1] : null) : null}
+                  />
+                )}
               </div>
             </div>
 
